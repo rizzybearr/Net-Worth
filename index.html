@@ -1,0 +1,1556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1"/>
+<title>Net Worth</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Net Worth">
+<meta name="theme-color" content="#0B4F4A">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<script src="https://cdn.tailwindcss.com"></script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import {
+    getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+    signOut, onAuthStateChanged
+  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import {
+    getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc,
+    collection, getDocs, addDoc
+  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  // Same Firebase project as Ledger — so signing in uses the same email/password,
+  // but all data below lives under separate "networth*" paths, never touching Ledger's data.
+  const firebaseConfig = {
+    apiKey: "AIzaSyBgLdTAiY7R5y9tE0IJuxkYVeUJAuGXURg",
+    authDomain: "ledger-803d1.firebaseapp.com",
+    projectId: "ledger-803d1",
+    storageBucket: "ledger-803d1.firebasestorage.app",
+    messagingSenderId: "56161373700",
+    appId: "1:56161373700:web:dffea11840f44729a4ef51",
+    measurementId: "G-LGXT6R7J5P"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  window.fb = {
+    signUp(email, password){ return createUserWithEmailAndPassword(auth, email, password); },
+    signIn(email, password){ return signInWithEmailAndPassword(auth, email, password); },
+    signOutUser(){ return signOut(auth); },
+    onAuthChange(cb){ onAuthStateChanged(auth, cb); },
+
+    async loadUserData(uid){
+      const metaRef = doc(db, "users", uid, "networthMeta", "settings");
+      const metaSnap = await getDoc(metaRef);
+      const meta = metaSnap.exists() ? metaSnap.data() : {};
+
+      const holdingsSnap = await getDocs(collection(db, "users", uid, "networthHoldings"));
+      let holdings = [];
+      holdingsSnap.forEach(d=> holdings.push({ id:d.id, ...d.data() }));
+
+      const realizedSnap = await getDocs(collection(db, "users", uid, "networthRealized"));
+      let realizedTrades = [];
+      realizedSnap.forEach(d=> realizedTrades.push({ id:d.id, ...d.data() }));
+      realizedTrades.sort((a,b)=> (b.date||"").localeCompare(a.date||""));
+
+      const historySnap = await getDocs(collection(db, "users", uid, "networthHistory"));
+      let netWorthHistory = [];
+      historySnap.forEach(d=> netWorthHistory.push(d.data()));
+      netWorthHistory.sort((a,b)=> (a.date||"").localeCompare(b.date||""));
+
+      return {
+        currency: meta.currency || "CNY",
+        holdings, realizedTrades, netWorthHistory
+      };
+    },
+
+    async addHolding(uid, data){
+      const ref = await addDoc(collection(db, "users", uid, "networthHoldings"), data);
+      return ref.id;
+    },
+    async updateHoldingDoc(uid, id, data){
+      await updateDoc(doc(db, "users", uid, "networthHoldings", id), data);
+    },
+    async deleteHoldingDoc(uid, id){
+      await deleteDoc(doc(db, "users", uid, "networthHoldings", id));
+    },
+    async addRealized(uid, data){
+      const ref = await addDoc(collection(db, "users", uid, "networthRealized"), data);
+      return ref.id;
+    },
+    async deleteRealizedDoc(uid, id){
+      await deleteDoc(doc(db, "users", uid, "networthRealized", id));
+    },
+    async setSnapshot(uid, dateId, data){
+      // date string as doc ID so re-recording the same day overwrites instead of duplicating
+      await setDoc(doc(db, "users", uid, "networthHistory", dateId), data);
+    },
+    async setMeta(uid, partial){
+      await setDoc(doc(db, "users", uid, "networthMeta", "settings"), partial, { merge:true });
+    }
+  };
+</script>
+<style>
+:root{
+  --paper:#FAF8F4;
+  --ink:#171A1C;
+  --ink-soft:#6B7280;
+  --line:#E8E4DB;
+  --card-bg:#ffffff;
+  --card-bg2:#f3f9f8;
+  --card-bg2-amber:#fff9eb;
+  --teal:#0B4F4A;
+  --teal-soft:#E4EEEC;
+  --amber:#B8860B;
+  --amber-soft:#FBF1DC;
+  --rose:#B3261E;
+  --rose-soft:#FBEAE9;
+  --moss:#3F6B3A;
+  --moss-soft:#EAF1E7;
+  --sky:#3887BE;
+}
+html[data-theme="dark"]{
+  --paper:#14171C;
+  --ink:#EDEDF2;
+  --ink-soft:#9AA1AC;
+  --line:#2A2E37;
+  --card-bg:#1C2027;
+  --card-bg2:#1A2422;
+  --card-bg2-amber:#241F17;
+  --teal-soft:#1B2C2A;
+  --amber-soft:#2E260F;
+  --rose-soft:#2E1618;
+  --moss-soft:#1B241A;
+}
+*{ -webkit-tap-highlight-color: transparent; box-sizing:border-box; }
+html,body{ background:var(--paper); }
+body {
+  padding-bottom: env(safe-area-inset-bottom);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+.font-num{ font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; letter-spacing:-0.01em; }
+.tab-active{ color:var(--teal); font-weight:700; }
+.tab-underline{ opacity:0; transform:scaleX(0.4); transition:all .2s ease; }
+.tab-underline.active{ opacity:1; transform:scaleX(1); }
+.fade-in { animation: fadeIn 0.25s ease-out; }
+@keyframes fadeIn{ from {opacity:0;transform:translateY(4px);} to {opacity:1;transform:translateY(0);} }
+@keyframes popIn{ from {opacity:0;transform:scale(0.94);} to {opacity:1;transform:scale(1);} }
+.item-card:active { transform: scale(0.985); transition: transform 0.12s ease; }
+.quick-edit-target{ border-bottom:1px dashed var(--line); padding-bottom:1px; }
+.quick-edit-target:active{ opacity:0.6; }
+.history-range-btn{ background:var(--teal-soft); color:var(--ink-soft); }
+.history-range-btn.active{ background:var(--teal); color:#fff; font-weight:600; }
+input, select, textarea { background: var(--card-bg); color: var(--ink); }
+input::placeholder, textarea::placeholder{ color: var(--ink-soft); opacity:1; }
+input:focus, select:focus {
+  outline: none;
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px rgba(11,79,74,0.12);
+}
+html[data-theme="dark"] input, html[data-theme="dark"] select { border-color: var(--line) !important; }
+.tag { font-size: 11px; padding: 3px 8px; border-radius: 999px; font-weight:600; letter-spacing:.01em; }
+.card{ background:var(--card-bg); border:1px solid var(--line); border-radius:20px; }
+.card-gradient-teal{ background:linear-gradient(145deg,var(--card-bg),var(--card-bg2)); border:1px solid var(--teal-soft); }
+.card-gradient-amber{ background:linear-gradient(145deg,var(--card-bg),var(--card-bg2-amber)); border:1px solid var(--amber-soft); }
+.icon-badge{ width:38px; height:38px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+::selection{ background: var(--teal-soft); }
+body.modal-open{ overflow:hidden; }
+.bg-white{ background:var(--card-bg) !important; }
+</style>
+<script>
+tailwind.config = {
+  theme: { extend: { colors: {
+    primary: '#0B4F4A', gain: '#3F6B3A', loss: '#B3261E',
+  } } }
+}
+</script>
+</head>
+<body class="max-w-lg mx-auto min-h-screen">
+
+<!-- Auth screen -->
+<div id="authScreen" class="fixed inset-0 z-40 flex items-center justify-center p-5" style="background:var(--paper);">
+  <div class="w-full max-w-sm space-y-4">
+    <div class="text-center mb-2">
+      <h1 class="text-2xl font-bold tracking-tight" style="color:var(--teal);">Net Worth</h1>
+      <p id="authSubtitle" class="text-sm text-slate-400 mt-1" data-i18n="authSubtitleIn">Sign in to sync your data</p>
+    </div>
+    <div class="card p-5 space-y-3">
+      <input type="email" id="authEmail" data-i18n-placeholder="authEmailPh" placeholder="Email" class="w-full border border-slate-200 rounded-xl p-3">
+      <input type="password" id="authPassword" data-i18n-placeholder="authPasswordPh" placeholder="Password" class="w-full border border-slate-200 rounded-xl p-3">
+      <p id="authError" class="text-sm hidden" style="color:var(--rose);"></p>
+      <button id="authSubmitBtn" onclick="handleAuthSubmit()" class="w-full text-white py-3 rounded-xl font-medium" style="background:var(--teal);" data-i18n="authSignIn">Sign In</button>
+      <button onclick="toggleAuthMode()" class="w-full text-sm py-1" style="color:var(--teal);" id="authToggleBtn" data-i18n="authNeedAccount">Need an account? Sign up</button>
+    </div>
+    <p class="text-center text-[11px] text-slate-400" data-i18n="authSameLoginNote">Same email/password as your Ledger app.</p>
+  </div>
+</div>
+
+<div id="appRoot" class="hidden">
+
+<div class="sticky top-0 z-10 backdrop-blur-md" style="background:var(--paper); opacity:0.97; border-bottom:1px solid var(--line);">
+  <div class="flex justify-between items-center px-4 pt-3">
+    <h1 class="text-[17px] font-bold tracking-tight" style="color:var(--ink);">Net Worth</h1>
+    <div class="flex items-center gap-2">
+      <button id="themeToggle" onclick="toggleTheme()" class="text-lg leading-none px-1" title="Toggle dark mode">🌙</button>
+      <button onclick="handleSignOut()" class="text-sm px-1" style="color:var(--ink-soft);" data-i18n="authSignOut">Sign out</button>
+      <select id="currencySelect" class="border-0 bg-transparent text-sm text-slate-500">
+        <option value="CNY">¥ CNY</option>
+        <option value="USD">$ USD</option>
+        <option value="EUR">€ EUR</option>
+        <option value="GBP">£ GBP</option>
+      </select>
+      <select id="langSelect" class="border-0 bg-transparent text-sm text-slate-500">
+        <option value="en">English</option>
+        <option value="zh">中文</option>
+      </select>
+    </div>
+  </div>
+  <div class="flex text-[15px]">
+    <button class="flex-1 pt-2 pb-2.5 text-center transition-colors relative text-slate-500 tab-active" data-page="add" data-i18n="tabAdd">Add</button>
+    <button class="flex-1 pt-2 pb-2.5 text-center transition-colors relative text-slate-500" data-page="overview" data-i18n="tabOverview">Overview</button>
+    <button class="flex-1 pt-2 pb-2.5 text-center transition-colors relative text-slate-500" data-page="holdings" data-i18n="tabHoldings">Holdings</button>
+  </div>
+  <div class="flex px-4">
+    <div class="flex-1 flex justify-center"><div class="tab-underline active h-[2.5px] w-10 rounded-full" style="background:var(--teal);"></div></div>
+    <div class="flex-1 flex justify-center"><div class="tab-underline h-[2.5px] w-10 rounded-full" style="background:var(--teal);"></div></div>
+    <div class="flex-1 flex justify-center"><div class="tab-underline h-[2.5px] w-10 rounded-full" style="background:var(--teal);"></div></div>
+  </div>
+</div>
+
+<!-- Overview -->
+<div id="page-overview" class="p-4 hidden fade-in space-y-4">
+  <div class="card card-gradient-teal p-5 text-center">
+    <p class="text-[13px] font-semibold text-slate-500 uppercase tracking-wide" data-i18n="totalNetWorth">Total Net Worth</p>
+    <p id="totalValue" class="font-num font-bold text-3xl mt-1">¥0.00</p>
+    <p id="totalGainLine" class="font-num text-sm mt-2">
+      <span id="totalGainAmt">¥0.00</span> (<span id="totalGainPct">0%</span>)
+      <span class="text-slate-400" data-i18n="allTime">all time</span>
+    </p>
+    <p id="rateStatus" class="text-[11px] text-slate-400 mt-2"></p>
+  </div>
+
+  <div class="card p-5">
+    <div class="flex items-center justify-between mb-3">
+      <p class="text-[13px] font-semibold text-slate-500 uppercase tracking-wide" data-i18n="historyTitle">Net Worth History</p>
+      <div class="flex gap-1">
+        <button data-hrange="6m" onclick="setHistoryRange('6m')" class="history-range-btn text-xs px-2 py-1 rounded-lg" data-i18n="range6m">6M</button>
+        <button data-hrange="1y" onclick="setHistoryRange('1y')" class="history-range-btn text-xs px-2 py-1 rounded-lg" data-i18n="range1y">1Y</button>
+        <button data-hrange="all" onclick="setHistoryRange('all')" class="history-range-btn text-xs px-2 py-1 rounded-lg active" data-i18n="rangeAll">All</button>
+      </div>
+    </div>
+    <canvas id="historyChart" height="140"></canvas>
+    <p id="emptyHistory" class="hidden text-center text-sm text-slate-400 py-6" data-i18n="emptyHistory">No snapshots yet — tap below to record today's.</p>
+    <button onclick="recordSnapshot()" class="w-full mt-3 py-2.5 rounded-xl text-white font-medium text-sm" style="background:var(--teal);" data-i18n="btnSnapshot">Record Today's Snapshot</button>
+  </div>
+
+  <div class="grid grid-cols-2 gap-3">
+    <div class="card p-4">
+      <p class="text-[12px] text-slate-400" data-i18n="totalCost">Total Cost Basis</p>
+      <p id="totalCost" class="font-num font-semibold text-lg mt-1">¥0.00</p>
+    </div>
+    <div class="card p-4">
+      <p class="text-[12px] text-slate-400" data-i18n="holdingCount">Holdings</p>
+      <p id="holdingCount" class="font-num font-semibold text-lg mt-1">0</p>
+    </div>
+  </div>
+
+  <div class="card card-gradient-amber p-5">
+    <p class="text-[13px] font-semibold text-slate-500 uppercase tracking-wide mb-3" data-i18n="allocationTitle">Allocation</p>
+    <canvas id="pieAllocation"></canvas>
+    <div id="allocationLegend" class="space-y-2 mt-4"></div>
+  </div>
+
+  <div id="familyCard" class="card p-5 hidden">
+    <p class="text-[13px] font-semibold text-slate-500 uppercase tracking-wide mb-3" data-i18n="familyTitle">By Family Member</p>
+    <div id="familyLegend" class="space-y-2"></div>
+  </div>
+
+  <div class="grid grid-cols-2 gap-3">
+    <div class="card p-4">
+      <p class="text-[12px] text-slate-400 mb-1" data-i18n="topGainer">Top Gainer</p>
+      <div id="topGainer" class="text-sm"></div>
+    </div>
+    <div class="card p-4">
+      <p class="text-[12px] text-slate-400 mb-1" data-i18n="topLoser">Top Loser</p>
+      <div id="topLoser" class="text-sm"></div>
+    </div>
+  </div>
+
+  <div class="card p-5">
+    <div class="flex items-center justify-between mb-3">
+      <p class="text-[13px] font-semibold text-slate-500 uppercase tracking-wide" data-i18n="realizedTitle">Realized Gains</p>
+      <span id="totalRealized" class="font-num font-semibold text-sm"></span>
+    </div>
+    <div id="realizedList" class="space-y-1"></div>
+    <p id="emptyRealized" class="hidden text-center text-sm text-slate-400 py-6" data-i18n="emptyRealized">No sales recorded yet.</p>
+  </div>
+
+  <div class="flex justify-end">
+    <button onclick="exportCSV()" class="text-sm px-3 py-1.5 rounded-lg text-white font-medium" style="background:var(--moss);" data-i18n="btnExport">Export CSV</button>
+  </div>
+</div>
+
+<!-- Holdings -->
+<div id="page-holdings" class="p-4 hidden fade-in space-y-4">
+  <input type="text" id="searchInput" data-i18n-placeholder="searchPh" placeholder="Search name or ticker" class="w-full border border-slate-200 rounded-xl p-2.5 text-sm">
+  <div id="holdingsList" class="space-y-5"></div>
+  <div id="emptyHoldings" class="hidden text-center py-16 text-slate-400 text-sm" data-i18n="emptyHoldings">No holdings yet. Add your first one on the Add tab.</div>
+</div>
+
+<!-- Add -->
+<div id="page-add" class="p-4 fade-in space-y-4">
+  <div class="card p-5 space-y-4">
+    <p class="text-[13px] font-semibold text-slate-500 uppercase tracking-wide" data-i18n="newHolding">New Holding</p>
+    <div>
+      <label class="text-slate-500 text-sm block mb-1" data-i18n="labelCategory">Category</label>
+      <select id="category" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1"></select>
+    </div>
+    <div>
+      <label class="text-slate-500 text-sm block mb-1" data-i18n="labelName">Name</label>
+      <input type="text" id="name" data-i18n-placeholder="namePh" placeholder="e.g. Apple Inc." class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
+    </div>
+    <div>
+      <label class="text-slate-500 text-sm block mb-1" data-i18n="labelTicker">Ticker (optional)</label>
+      <input type="text" id="ticker" placeholder="AAPL" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
+    </div>
+    <div>
+      <label class="text-slate-500 text-sm block mb-1" data-i18n="labelMode">Tracking Mode</label>
+      <select id="mode" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
+        <option value="manual" data-i18n="modeManual">Manual entry</option>
+        <option value="shares" data-i18n="modeShares">Shares &amp; Price</option>
+        <option value="fixedRate" data-i18n="modeFixedRate">Fixed-rate deposit</option>
+      </select>
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+      <div id="costBasisFieldWrap">
+        <label class="text-slate-500 text-sm block mb-1" id="costBasisLabel" data-i18n="labelCostBasis">Cost Basis</label>
+        <input type="number" step="0.01" id="costBasis" placeholder="0.00" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1 font-num">
+      </div>
+      <div id="currentValueField">
+        <label class="text-slate-500 text-sm block mb-1" data-i18n="labelCurrentValue">Current Value</label>
+        <input type="number" step="0.01" id="currentValue" placeholder="0.00" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1 font-num">
+      </div>
+    </div>
+    <div id="sharesFields" class="hidden space-y-4">
+      <div>
+        <label class="text-slate-500 text-sm block mb-1" data-i18n="labelShares">Shares / Units</label>
+        <input type="number" step="0.0001" id="shares" placeholder="0" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1 font-num">
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-slate-500 text-sm block mb-1" data-i18n="labelCostPerShare">Cost / Share</label>
+          <input type="number" step="0.0001" id="costPerShare" placeholder="0.00" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1 font-num">
+        </div>
+        <div>
+          <label class="text-slate-500 text-sm block mb-1" data-i18n="labelCurrentPrice">Current Price</label>
+          <input type="number" step="0.0001" id="currentPrice" placeholder="0.00" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1 font-num">
+        </div>
+      </div>
+    </div>
+    <div id="fixedRateFields" class="hidden space-y-4">
+      <div>
+        <label class="text-slate-500 text-sm block mb-1" data-i18n="labelRate">Annual Rate (%)</label>
+        <input type="number" step="0.01" id="rate" placeholder="3.00" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1 font-num">
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-slate-500 text-sm block mb-1" data-i18n="labelStartDate">Start Date</label>
+          <input type="date" id="startDate" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
+        </div>
+        <div>
+          <label class="text-slate-500 text-sm block mb-1" data-i18n="labelMaturityDate">Maturity (optional)</label>
+          <input type="date" id="maturityDate" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
+        </div>
+      </div>
+      <div>
+        <label class="text-slate-500 text-sm block mb-1" data-i18n="labelCompounding">Interest Type</label>
+        <select id="compounding" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
+          <option value="simple" data-i18n="compSimple">Simple interest</option>
+          <option value="annual" data-i18n="compAnnual">Compound annually</option>
+          <option value="monthly" data-i18n="compMonthly">Compound monthly</option>
+          <option value="daily" data-i18n="compDaily">Compound daily</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <label class="text-slate-500 text-sm block mb-1" data-i18n="labelHoldingCurrency">Currency</label>
+      <select id="holdingCurrency" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
+        <option value="CNY">¥ CNY</option>
+        <option value="USD">$ USD</option>
+        <option value="EUR">€ EUR</option>
+        <option value="GBP">£ GBP</option>
+      </select>
+    </div>
+    <div>
+      <label class="text-slate-500 text-sm block mb-1" data-i18n="labelOwner">Family Member (optional)</label>
+      <input type="text" id="owner" list="ownerSuggestions" data-i18n-placeholder="ownerPh" placeholder="e.g. Me, Mom, Dad" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
+      <datalist id="ownerSuggestions"></datalist>
+    </div>
+    <div>
+      <label class="text-slate-500 text-sm block mb-1" data-i18n="labelNotes">Notes (optional)</label>
+      <input type="text" id="notes" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
+    </div>
+    <button onclick="saveHolding()" class="w-full text-white py-3.5 rounded-xl font-medium shadow-sm active:scale-[0.99] transition-all" style="background:var(--teal);" data-i18n="btnSave">Save</button>
+  </div>
+  <p class="text-[11px] text-slate-400 text-center" data-i18n="manualPriceNote">Values are entered manually — update them whenever you check your accounts.</p>
+</div>
+
+<!-- Edit modal -->
+<div id="editModal" class="fixed inset-0 bg-black/45 hidden flex items-center justify-center p-4 z-50">
+  <div class="rounded-2xl w-full max-w-md p-5 space-y-3.5 fade-in" style="margin-bottom: env(safe-area-inset-bottom); background:var(--card-bg); color:var(--ink);">
+    <input type="hidden" id="editId"/>
+    <select id="e-category" class="w-full border border-slate-200 rounded-xl p-2.5"></select>
+    <input type="text" id="e-name" class="w-full border border-slate-200 rounded-xl p-2.5">
+    <input type="text" id="e-ticker" class="w-full border border-slate-200 rounded-xl p-2.5">
+    <select id="e-mode" class="w-full border border-slate-200 rounded-xl p-2.5">
+      <option value="manual" data-i18n="modeManual">Manual entry</option>
+      <option value="shares" data-i18n="modeShares">Shares &amp; Price</option>
+      <option value="fixedRate" data-i18n="modeFixedRate">Fixed-rate deposit</option>
+    </select>
+    <div class="grid grid-cols-2 gap-3">
+      <div id="e-costBasisFieldWrap">
+        <input type="number" step="0.01" id="e-costBasis" placeholder="0.00" class="w-full border border-slate-200 rounded-xl p-2.5 font-num">
+      </div>
+      <div id="e-currentValueField">
+        <input type="number" step="0.01" id="e-currentValue" placeholder="0.00" class="w-full border border-slate-200 rounded-xl p-2.5 font-num">
+      </div>
+    </div>
+    <div id="e-sharesFields" class="hidden space-y-3">
+      <input type="number" step="0.0001" id="e-shares" data-i18n-placeholder="labelShares" placeholder="Shares / Units" class="w-full border border-slate-200 rounded-xl p-2.5 font-num">
+      <div class="grid grid-cols-2 gap-3">
+        <input type="number" step="0.0001" id="e-costPerShare" data-i18n-placeholder="labelCostPerShare" placeholder="Cost / Share" class="w-full border border-slate-200 rounded-xl p-2.5 font-num">
+        <input type="number" step="0.0001" id="e-currentPrice" data-i18n-placeholder="labelCurrentPrice" placeholder="Current Price" class="w-full border border-slate-200 rounded-xl p-2.5 font-num">
+      </div>
+    </div>
+    <div id="e-fixedRateFields" class="hidden space-y-3">
+      <input type="number" step="0.01" id="e-rate" data-i18n-placeholder="labelRate" placeholder="Annual Rate (%)" class="w-full border border-slate-200 rounded-xl p-2.5 font-num">
+      <div class="grid grid-cols-2 gap-3">
+        <input type="date" id="e-startDate" class="w-full border border-slate-200 rounded-xl p-2.5">
+        <input type="date" id="e-maturityDate" class="w-full border border-slate-200 rounded-xl p-2.5">
+      </div>
+      <select id="e-compounding" class="w-full border border-slate-200 rounded-xl p-2.5">
+        <option value="simple" data-i18n="compSimple">Simple interest</option>
+        <option value="annual" data-i18n="compAnnual">Compound annually</option>
+        <option value="monthly" data-i18n="compMonthly">Compound monthly</option>
+        <option value="daily" data-i18n="compDaily">Compound daily</option>
+      </select>
+    </div>
+    <select id="e-holdingCurrency" class="w-full border border-slate-200 rounded-xl p-2.5">
+      <option value="CNY">¥ CNY</option>
+      <option value="USD">$ USD</option>
+      <option value="EUR">€ EUR</option>
+      <option value="GBP">£ GBP</option>
+    </select>
+    <input type="text" id="e-owner" list="ownerSuggestions" data-i18n-placeholder="ownerPh" placeholder="e.g. Me, Mom, Dad" class="w-full border border-slate-200 rounded-xl p-2.5">
+    <input type="text" id="e-notes" class="w-full border border-slate-200 rounded-xl p-2.5">
+    <div class="flex gap-3 pt-1">
+      <button onclick="closeModal()" class="flex-1 py-2.5 bg-slate-200 rounded-xl" data-i18n="btnCancel">Cancel</button>
+      <button onclick="updateHolding()" class="flex-1 py-2.5 text-white rounded-xl" style="background:var(--teal);" data-i18n="btnUpdate">Update</button>
+    </div>
+    <div id="buyMoreBtnWrap" class="hidden">
+      <button onclick="openBuyModal()" class="w-full py-2.5 rounded-xl text-sm font-medium text-white" style="background:var(--sky);" data-i18n="btnBuyMore">Buy More</button>
+    </div>
+    <button onclick="openSellModal()" class="w-full py-2.5 rounded-xl text-sm font-medium text-white" style="background:var(--amber);" data-i18n="btnSell">Sell / Withdraw</button>
+    <button onclick="deleteHolding()" class="w-full py-2 text-sm" style="color:var(--rose);" data-i18n="btnDelete">Delete</button>
+  </div>
+</div>
+
+<!-- Buy More modal -->
+<div id="buyModal" class="fixed inset-0 bg-black/45 hidden items-center justify-center p-4 z-50">
+  <div class="rounded-2xl w-full max-w-md p-5 space-y-3.5 fade-in" style="margin-bottom: env(safe-area-inset-bottom); background:var(--card-bg); color:var(--ink);">
+    <p class="text-[15px] font-semibold" id="buyModalTitle" data-i18n="buyModalTitle">Buy More</p>
+    <div>
+      <label class="text-slate-500 text-sm block mb-1" data-i18n="labelBuyShares">Shares to buy</label>
+      <input type="number" step="0.0001" id="buyShares" placeholder="0" class="w-full border border-slate-200 rounded-xl p-2.5 font-num">
+    </div>
+    <div>
+      <label class="text-slate-500 text-sm block mb-1" data-i18n="labelBuyPrice">Price / share</label>
+      <input type="number" step="0.0001" id="buyPrice" placeholder="0.00" class="w-full border border-slate-200 rounded-xl p-2.5 font-num">
+    </div>
+    <p id="buyPreview" class="text-[12px] text-slate-400"></p>
+    <div class="flex gap-3 pt-1">
+      <button onclick="closeBuyModal()" class="flex-1 py-2.5 bg-slate-200 rounded-xl" data-i18n="btnCancel">Cancel</button>
+      <button onclick="confirmBuy()" class="flex-1 py-2.5 text-white rounded-xl" style="background:var(--sky);" data-i18n="btnConfirmBuy">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Sell / Withdraw modal -->
+<div id="sellModal" class="fixed inset-0 bg-black/45 hidden items-center justify-center p-4 z-50">
+  <div class="rounded-2xl w-full max-w-md p-5 space-y-3.5 fade-in" style="margin-bottom: env(safe-area-inset-bottom); background:var(--card-bg); color:var(--ink);">
+    <p class="text-[15px] font-semibold" id="sellModalTitle" data-i18n="sellModalTitle">Sell / Withdraw</p>
+    <div id="sellAmountField">
+      <label class="text-slate-500 text-sm block mb-1" data-i18n="labelSellAmount">Amount to sell/withdraw</label>
+      <input type="number" step="0.01" id="sellAmount" placeholder="0.00" class="w-full border border-slate-200 rounded-xl p-2.5 font-num">
+    </div>
+    <div id="sellSharesFields" class="hidden space-y-3">
+      <div>
+        <label class="text-slate-500 text-sm block mb-1" data-i18n="labelSellShares">Shares to sell</label>
+        <input type="number" step="0.0001" id="sellShares" placeholder="0" class="w-full border border-slate-200 rounded-xl p-2.5 font-num">
+      </div>
+      <div>
+        <label class="text-slate-500 text-sm block mb-1" data-i18n="labelSellPrice">Sell price / share</label>
+        <input type="number" step="0.0001" id="sellPrice" placeholder="0.00" class="w-full border border-slate-200 rounded-xl p-2.5 font-num">
+      </div>
+    </div>
+    <div>
+      <label class="text-slate-500 text-sm block mb-1" data-i18n="labelSellDate">Date</label>
+      <input type="date" id="sellDate" class="w-full border border-slate-200 rounded-xl p-2.5">
+    </div>
+    <p id="sellPreview" class="text-[12px] text-slate-400"></p>
+    <div class="flex gap-3 pt-1">
+      <button onclick="closeSellModal()" class="flex-1 py-2.5 bg-slate-200 rounded-xl" data-i18n="btnCancel">Cancel</button>
+      <button onclick="confirmSell()" class="flex-1 py-2.5 text-white rounded-xl" style="background:var(--amber);" data-i18n="btnConfirmSell">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm modal -->
+<div id="confirmModal" class="fixed inset-0 bg-black/45 hidden items-center justify-center p-4 z-50">
+  <div class="rounded-2xl w-full max-w-xs p-5 text-center" style="animation:popIn .15s ease-out; background:var(--card-bg); color:var(--ink);">
+    <p id="confirmMsg" class="text-[15px] mb-4"></p>
+    <div class="flex gap-3">
+      <button id="confirmCancelBtn" class="flex-1 py-2.5 bg-slate-200 rounded-xl font-medium"></button>
+      <button id="confirmOkBtn" class="flex-1 py-2.5 text-white rounded-xl font-medium" style="background:var(--rose);"></button>
+    </div>
+  </div>
+</div>
+<div id="toast" class="fixed left-1/2 -translate-x-1/2 bottom-6 px-4 py-2.5 rounded-full text-white text-sm font-medium shadow-lg z-50 pointer-events-none opacity-0 transition-opacity" style="background:var(--ink);"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// ---------- Theme ----------
+function applyTheme(theme){
+  document.documentElement.setAttribute("data-theme", theme);
+  document.getElementById("themeToggle").innerText = theme === "dark" ? "☀️" : "🌙";
+  localStorage.setItem("nwTheme", theme);
+}
+function toggleTheme(){
+  const cur = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+  applyTheme(cur);
+}
+applyTheme(localStorage.getItem("nwTheme") || "light");
+
+// ---------- Dialogs ----------
+let toastTimer = null;
+function showToast(msg){
+  const el = document.getElementById("toast");
+  el.innerText = msg;
+  el.style.opacity = "1";
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{ el.style.opacity = "0"; }, 1800);
+}
+function showConfirm(msg, onOk){
+  const dict = i18nTexts[currentLang];
+  const modal = document.getElementById("confirmModal");
+  document.getElementById("confirmMsg").innerText = msg;
+  document.getElementById("confirmCancelBtn").innerText = dict.btnCancel;
+  document.getElementById("confirmOkBtn").innerText = dict.btnDelete;
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+  const cancelBtn = document.getElementById("confirmCancelBtn");
+  const okBtn = document.getElementById("confirmOkBtn");
+  function cleanup(){
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+    cancelBtn.onclick = null;
+    okBtn.onclick = null;
+  }
+  cancelBtn.onclick = cleanup;
+  okBtn.onclick = ()=>{ cleanup(); onOk(); };
+}
+
+// ---------- i18n ----------
+const i18nTexts = {
+  en:{
+    tabOverview:"Overview", tabHoldings:"Holdings", tabAdd:"Add",
+    totalNetWorth:"Total Net Worth", allTime:"all time",
+    totalCost:"Total Cost Basis", holdingCount:"Holdings",
+    allocationTitle:"Allocation", topGainer:"Top Gainer", topLoser:"Top Loser",
+    btnExport:"Export CSV", searchPh:"Search name or ticker",
+    emptyHoldings:"No holdings yet. Add your first one on the Add tab.",
+    newHolding:"New Holding", labelCategory:"Category", labelName:"Name", namePh:"e.g. Apple Inc.",
+    labelTicker:"Ticker (optional)", labelCostBasis:"Cost Basis", labelCurrentValue:"Current Value",
+    labelQuantity:"Quantity (optional)", quantityPh:"e.g. shares/units", labelNotes:"Notes (optional)",
+    labelOwner:"Family Member (optional)", ownerPh:"e.g. Me, Mom, Dad", ownerMe:"Me", familyTitle:"By Family Member",
+    authSubtitleIn:"Sign in to sync your data", authSubtitleUp:"Create an account to sync your data",
+    authEmailPh:"Email", authPasswordPh:"Password", authSameLoginNote:"Same email/password as your Ledger app.",
+    authSignIn:"Sign In", authSignUp:"Sign Up", authSignOut:"Sign out",
+    authNeedAccount:"Need an account? Sign up", authHaveAccount:"Have an account? Sign in",
+    authFillBoth:"Please fill in email and password",
+    labelHoldingCurrency:"Currency", tapToQuickEdit:"Tap to quickly update this value",
+    labelMode:"Tracking Mode", modeManual:"Manual entry", modeShares:"Shares & Price", modeFixedRate:"Fixed-rate deposit",
+    labelShares:"Shares / Units", labelCostPerShare:"Cost / Share", labelCurrentPrice:"Current Price",
+    labelSellShares:"Shares to sell", labelSellPrice:"Sell price / share", perShareShort:"/share",
+    btnBuyMore:"Buy More", buyModalTitle:"Buy More", labelBuyShares:"Shares to buy", labelBuyPrice:"Price / share",
+    buyPreviewPrefix:"New position:", buyPreviewAvg:"avg cost", alertBought:"Purchase added",
+    labelRate:"Annual Rate (%)", labelStartDate:"Start Date", labelMaturityDate:"Maturity (optional)",
+    labelCompounding:"Interest Type", compSimple:"Simple interest", compAnnual:"Compound annually",
+    compMonthly:"Compound monthly", compDaily:"Compound daily",
+    fixedRateNote:"Value is calculated automatically from the rate — no need to update it by hand.",
+    maturedTag:"Matured", labelPrincipal:"Principal",
+    btnSell:"Sell / Withdraw", sellModalTitle:"Sell / Withdraw",
+    labelSellAmount:"Amount to sell/withdraw", labelSellDate:"Date",
+    sellPreviewPrefix:"Realized gain:", btnConfirmSell:"Confirm",
+    alertSold:"Recorded", confirmDelRealized:"Delete this realized entry?",
+    realizedTitle:"Realized Gains", emptyRealized:"No sales recorded yet.",
+    historyTitle:"Net Worth History", range6m:"6M", range1y:"1Y", rangeAll:"All",
+    emptyHistory:"No snapshots yet — tap below to record today's.",
+    btnSnapshot:"Record Today's Snapshot", alertSnapshotSaved:"Snapshot saved",
+    ratesLiveAsOf:"Live rates as of", ratesCachedAsOf:"Using saved rates from", ratesApprox:"Using approximate rates — connect to the internet to update",
+    btnSave:"Save", manualPriceNote:"Values are entered manually — update them whenever you check your accounts.",
+    btnCancel:"Cancel", btnUpdate:"Update", btnDelete:"Delete",
+    alertEmpty:"Please fill in name, cost basis, and current value",
+    alertSaved:"Holding saved", alertUpdated:"Holding updated", alertDeleted:"Holding deleted",
+    confirmDel:"Delete this holding?", noResults:"No matching holdings.",
+    catStocks:"Stocks", catFunds:"Funds", catBank:"Bank Account", catWeChat:"WeChat", catAlipay:"Alipay", catCash:"Cash", catCrypto:"Crypto", catRealEstate:"Real Estate", catOther:"Other"
+  },
+  zh:{
+    tabOverview:"总览", tabHoldings:"持仓", tabAdd:"添加",
+    totalNetWorth:"总资产净值", allTime:"累计",
+    totalCost:"总投入成本", holdingCount:"持仓数量",
+    allocationTitle:"资产配置", topGainer:"涨幅最大", topLoser:"跌幅最大",
+    btnExport:"导出CSV", searchPh:"搜索名称或代码",
+    emptyHoldings:"暂无持仓，请在“添加”页添加第一笔",
+    newHolding:"新增持仓", labelCategory:"类别", labelName:"名称", namePh:"例如：苹果公司",
+    labelTicker:"代码（可选）", labelCostBasis:"投入成本", labelCurrentValue:"当前价值",
+    labelQuantity:"数量（可选）", quantityPh:"例如：股数/份额", labelNotes:"备注（可选）",
+    labelOwner:"家庭成员（可选）", ownerPh:"例如：我、妈妈、爸爸", ownerMe:"我", familyTitle:"按家庭成员",
+    authSubtitleIn:"登录以同步您的数据", authSubtitleUp:"创建账户以同步您的数据",
+    authEmailPh:"邮箱", authPasswordPh:"密码", authSameLoginNote:"与您的记账本App使用相同的邮箱和密码。",
+    authSignIn:"登录", authSignUp:"注册", authSignOut:"退出登录",
+    authNeedAccount:"没有账户？去注册", authHaveAccount:"已有账户？去登录",
+    authFillBoth:"请填写邮箱和密码",
+    labelHoldingCurrency:"货币", tapToQuickEdit:"点击可快速更新数值",
+    labelMode:"记账方式", modeManual:"手动录入", modeShares:"份额及价格", modeFixedRate:"固定利率存款",
+    labelShares:"份额/股数", labelCostPerShare:"每份成本", labelCurrentPrice:"当前价格",
+    labelSellShares:"卖出份额", labelSellPrice:"卖出单价", perShareShort:"/份",
+    btnBuyMore:"加仓", buyModalTitle:"加仓", labelBuyShares:"买入份额", labelBuyPrice:"买入单价",
+    buyPreviewPrefix:"新持仓：", buyPreviewAvg:"平均成本", alertBought:"已添加买入记录",
+    labelRate:"年利率（%）", labelStartDate:"起始日期", labelMaturityDate:"到期日（可选）",
+    labelCompounding:"计息方式", compSimple:"单利", compAnnual:"复利（按年）",
+    compMonthly:"复利（按月）", compDaily:"复利（按日）",
+    fixedRateNote:"数值将根据利率自动计算 — 无需手动更新。",
+    maturedTag:"已到期", labelPrincipal:"本金",
+    btnSell:"卖出/提取", sellModalTitle:"卖出/提取",
+    labelSellAmount:"卖出/提取金额", labelSellDate:"日期",
+    sellPreviewPrefix:"已实现收益：", btnConfirmSell:"确认",
+    alertSold:"已记录", confirmDelRealized:"删除这条已实现记录？",
+    realizedTitle:"已实现收益", emptyRealized:"暂无卖出记录。",
+    historyTitle:"净资产历史", range6m:"6个月", range1y:"1年", rangeAll:"全部",
+    emptyHistory:"暂无快照 — 点击下方记录今天的数据。",
+    btnSnapshot:"记录今日快照", alertSnapshotSaved:"快照已保存",
+    ratesLiveAsOf:"实时汇率，更新于", ratesCachedAsOf:"使用已保存汇率，来自", ratesApprox:"使用近似汇率 — 请连接网络以更新",
+    btnSave:"保存", manualPriceNote:"数值需手动录入 — 请在查看账户时及时更新。",
+    btnCancel:"取消", btnUpdate:"保存修改", btnDelete:"删除",
+    alertEmpty:"请填写名称、投入成本和当前价值",
+    alertSaved:"已保存持仓", alertUpdated:"持仓已更新", alertDeleted:"持仓已删除",
+    confirmDel:"确定删除这笔持仓？", noResults:"没有匹配的持仓。",
+    catStocks:"股票", catFunds:"基金", catBank:"银行账户", catWeChat:"微信", catAlipay:"支付宝", catCash:"现金", catCrypto:"加密货币", catRealEstate:"房地产", catOther:"其他"
+  }
+};
+
+const catEmoji = { catStocks:"📈", catFunds:"📊", catBank:"🏦", catWeChat:"💬", catAlipay:"💠", catCash:"💵", catCrypto:"₿", catRealEstate:"🏠", catOther:"📦" };
+const catKeys = ["catStocks","catFunds","catBank","catWeChat","catAlipay","catCash","catCrypto","catRealEstate","catOther"];
+
+function hslToHex(h, s, l){
+  s/=100; l/=100;
+  const k = n => (n + h/30) % 12;
+  const a = s * Math.min(l, 1-l);
+  const f = n => l - a * Math.max(-1, Math.min(k(n)-3, Math.min(9-k(n), 1)));
+  const toHex = x => Math.round(255*x).toString(16).padStart(2,"0");
+  return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
+}
+const catPalette = catKeys.map((_,i)=> hslToHex(Math.round(360*i/catKeys.length), 58, 78));
+function catColor(catKey){ const idx = catKeys.indexOf(catKey); return idx===-1 ? "#C9C4B8" : catPalette[idx]; }
+function catIcon(catKey){ return catEmoji[catKey] || "📦"; }
+function catLabel(catKey){ return i18nTexts[currentLang][catKey] || catKey; }
+
+let currentLang = localStorage.getItem("nwLang") || "en";
+let holdings = [];
+let currentCurrency = "CNY";
+let currentUid = null;
+const currencySymbols = { CNY:"¥", USD:"$", EUR:"€", GBP:"£" };
+function sym(){ return currencySymbols[currentCurrency] || "¥"; }
+
+let chartAllocation = null;
+let chartHistory = null;
+let realizedTrades = [];
+let netWorthHistory = [];
+let historyRange = "all";
+let sellingHoldingId = null;
+
+// ---------- Live exchange rates ----------
+// Rates are USD-based: rates[X] = how many units of X per 1 USD.
+let fxRates = { USD:1, CNY:7.2, EUR:0.92, GBP:0.79 };
+let fxFetchedAt = null;
+let fxIsLive = false;
+const FX_MAX_AGE_MS = 6 * 60 * 60 * 1000; // refetch if cache older than 6h
+
+function convert(amount, from, to){
+  if(from === to) return amount;
+  const usd = amount / (fxRates[from] || 1);
+  return usd * (fxRates[to] || 1);
+}
+
+// ---------- Fixed-rate deposit math ----------
+function computeFixedRateValue(h){
+  const start = new Date(h.startDate);
+  const now = new Date();
+  const maturity = h.maturityDate ? new Date(h.maturityDate) : null;
+  const matured = maturity ? now > maturity : false;
+  const effectiveEnd = matured ? maturity : now;
+  const years = Math.max(0, (effectiveEnd - start) / (365 * 86400000));
+  const r = (h.rate || 0) / 100;
+  let value;
+  if(h.compounding === "simple" || !h.compounding){
+    value = h.costBasis * (1 + r * years);
+  }else{
+    const freq = h.compounding === "monthly" ? 12 : h.compounding === "daily" ? 365 : 1;
+    value = h.costBasis * Math.pow(1 + r/freq, freq * years);
+  }
+  return { value, matured };
+}
+function getCurrentValue(h){
+  if(h.mode === "fixedRate") return computeFixedRateValue(h).value;
+  if(h.mode === "shares") return (h.shares||0) * (h.currentPrice||0);
+  return h.currentValue;
+}
+function getCostBasis(h){
+  if(h.mode === "shares") return (h.shares||0) * (h.costPerShare||0);
+  return h.costBasis;
+}
+
+async function loadExchangeRates(){
+  const cached = JSON.parse(localStorage.getItem("nwRates") || "null");
+  const cacheAge = cached ? Date.now() - new Date(cached.fetchedAt).getTime() : Infinity;
+  if(cached && cacheAge < FX_MAX_AGE_MS){
+    fxRates = cached.rates; fxFetchedAt = cached.fetchedAt; fxIsLive = true;
+    renderRateStatus();
+    return;
+  }
+  try{
+    const res = await fetch("https://open.er-api.com/v6/latest/USD");
+    const data = await res.json();
+    if(data && data.result === "success" && data.rates){
+      fxRates = data.rates;
+      fxFetchedAt = new Date().toISOString();
+      fxIsLive = true;
+      localStorage.setItem("nwRates", JSON.stringify({ rates: fxRates, fetchedAt: fxFetchedAt }));
+    }else{
+      throw new Error("bad response");
+    }
+  }catch(e){
+    if(cached){
+      fxRates = cached.rates; fxFetchedAt = cached.fetchedAt; fxIsLive = false;
+    }else{
+      fxIsLive = false; fxFetchedAt = null; // using hardcoded fallback defaults
+    }
+  }
+  renderRateStatus();
+  renderOverview();
+  renderHoldingsList();
+}
+
+function renderRateStatus(){
+  const dict = i18nTexts[currentLang];
+  const el = document.getElementById("rateStatus");
+  if(!el) return;
+  if(fxIsLive && fxFetchedAt){
+    const t = new Date(fxFetchedAt).toLocaleString(currentLang==="zh"?"zh-CN":"en-US", {month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
+    el.innerText = dict.ratesLiveAsOf + " " + t;
+    el.style.color = "";
+  }else if(fxFetchedAt){
+    const t = new Date(fxFetchedAt).toLocaleDateString(currentLang==="zh"?"zh-CN":"en-US");
+    el.innerText = dict.ratesCachedAsOf + " " + t;
+    el.style.color = "var(--amber)";
+  }else{
+    el.innerText = dict.ratesApprox;
+    el.style.color = "var(--amber)";
+  }
+}
+
+document.getElementById("currencySelect").onchange = function(){
+  currentCurrency = this.value;
+  if(currentUid) window.fb.setMeta(currentUid, { currency: currentCurrency });
+  renderOverview();
+  renderHoldingsList();
+};
+
+function renderCategorySelect(selectEl, selectedVal=""){
+  selectEl.innerHTML = catKeys.map(k=>
+    `<option value="${k}" ${k===selectedVal?"selected":""}>${catIcon(k)} ${catLabel(k)}</option>`
+  ).join("");
+}
+
+function setLanguage(lang){
+  currentLang = lang;
+  localStorage.setItem("nwLang", lang);
+  const dict = i18nTexts[lang];
+  document.querySelectorAll("[data-i18n]").forEach(el=>{
+    const key = el.getAttribute("data-i18n");
+    if(dict[key]) el.innerText = dict[key];
+  });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach(el=>{
+    const key = el.getAttribute("data-i18n-placeholder");
+    if(dict[key]) el.placeholder = dict[key];
+  });
+  document.documentElement.lang = lang;
+  renderCategorySelect(document.getElementById("category"));
+  renderCategorySelect(document.getElementById("e-category"));
+  document.getElementById("holdingCurrency").value = currentCurrency;
+  renderRateStatus();
+  renderOverview();
+  renderHoldingsList();
+}
+
+document.getElementById("langSelect").value = currentLang;
+document.getElementById("langSelect").onchange = function(){ setLanguage(this.value); };
+
+function toggleModeFields(prefix){
+  const dict = i18nTexts[currentLang];
+  const mode = document.getElementById(prefix+"mode").value;
+  const isFixed = mode === "fixedRate";
+  const isShares = mode === "shares";
+  document.getElementById(prefix+"currentValueField").classList.toggle("hidden", isFixed || isShares);
+  document.getElementById(prefix+"costBasisFieldWrap").classList.toggle("hidden", isShares);
+  document.getElementById(prefix+"fixedRateFields").classList.toggle("hidden", !isFixed);
+  document.getElementById(prefix+"sharesFields").classList.toggle("hidden", !isShares);
+  const labelEl = document.getElementById(prefix+"costBasisLabel");
+  if(labelEl) labelEl.innerText = isFixed ? dict.labelPrincipal : dict.labelCostBasis;
+}
+document.getElementById("mode").onchange = ()=> toggleModeFields("");
+document.getElementById("e-mode").onchange = ()=> toggleModeFields("e-");
+
+document.querySelectorAll("[data-page]").forEach((btn, idx)=>{
+  btn.onclick = ()=>{
+    document.querySelectorAll("[data-page]").forEach(b=>b.classList.remove("tab-active"));
+    btn.classList.add("tab-active");
+    document.querySelectorAll(".tab-underline").forEach(u=>u.classList.remove("active"));
+    document.querySelectorAll(".tab-underline")[idx].classList.add("active");
+    const target = btn.dataset.page;
+    document.querySelectorAll("[id^='page-']").forEach(p=>p.classList.add("hidden"));
+    document.getElementById("page-"+target).classList.remove("hidden");
+    if(target==="overview") renderOverview();
+    if(target==="holdings") renderHoldingsList();
+  };
+});
+
+document.getElementById("editModal").onclick = function(e){ if(e.target===this) closeModal(); };
+document.getElementById("sellModal").onclick = function(e){ if(e.target===this) closeSellModal(); };
+document.getElementById("buyModal").onclick = function(e){ if(e.target===this) closeBuyModal(); };
+
+async function saveHolding(){
+  const dict = i18nTexts[currentLang];
+  const category = document.getElementById("category").value;
+  const name = document.getElementById("name").value.trim();
+  const ticker = document.getElementById("ticker").value.trim();
+  const mode = document.getElementById("mode").value;
+  const currency = document.getElementById("holdingCurrency").value;
+  const owner = document.getElementById("owner").value.trim();
+  const notes = document.getElementById("notes").value.trim();
+
+  let costBasis = null, currentValue = null, rate = null, startDate = null, maturityDate = null, compounding = null;
+  let shares = null, costPerShare = null, currentPrice = null;
+
+  if(mode === "fixedRate"){
+    costBasis = parseFloat(document.getElementById("costBasis").value);
+    rate = parseFloat(document.getElementById("rate").value) || 0;
+    startDate = document.getElementById("startDate").value;
+    maturityDate = document.getElementById("maturityDate").value || null;
+    compounding = document.getElementById("compounding").value;
+    if(!name || isNaN(costBasis) || !startDate) return showToast(dict.alertEmpty);
+  }else if(mode === "shares"){
+    shares = parseFloat(document.getElementById("shares").value);
+    costPerShare = parseFloat(document.getElementById("costPerShare").value);
+    currentPrice = parseFloat(document.getElementById("currentPrice").value);
+    if(!name || isNaN(shares) || isNaN(costPerShare) || isNaN(currentPrice)) return showToast(dict.alertEmpty);
+  }else{
+    costBasis = parseFloat(document.getElementById("costBasis").value);
+    currentValue = parseFloat(document.getElementById("currentValue").value);
+    if(!name || isNaN(costBasis) || isNaN(currentValue)) return showToast(dict.alertEmpty);
+  }
+
+  const data = { category, name, ticker, mode, costBasis, currentValue, currency, owner, notes, rate, startDate, maturityDate, compounding, shares, costPerShare, currentPrice };
+  const newId = await window.fb.addHolding(currentUid, data);
+  holdings.unshift({ id:newId, ...data });
+
+  document.getElementById("name").value="";
+  document.getElementById("ticker").value="";
+  document.getElementById("costBasis").value="";
+  document.getElementById("currentValue").value="";
+  document.getElementById("rate").value="";
+  document.getElementById("startDate").value="";
+  document.getElementById("maturityDate").value="";
+  document.getElementById("shares").value="";
+  document.getElementById("costPerShare").value="";
+  document.getElementById("currentPrice").value="";
+  document.getElementById("owner").value="";
+  document.getElementById("notes").value="";
+  showToast(dict.alertSaved);
+  renderOverview();
+  renderHoldingsList();
+}
+
+function getFilteredHoldings(){
+  const q = (document.getElementById("searchInput").value || "").trim().toLowerCase();
+  if(!q) return holdings;
+  return holdings.filter(h=> (h.name||"").toLowerCase().includes(q) || (h.ticker||"").toLowerCase().includes(q) || (h.owner||"").toLowerCase().includes(q));
+}
+document.getElementById("searchInput").oninput = renderHoldingsList;
+
+function gainBadge(h){
+  const curr = h.currency || "CNY";
+  const currentVal = getCurrentValue(h);
+  const costVal = getCostBasis(h);
+  const cv = convert(currentVal, curr, currentCurrency);
+  const cb = convert(costVal, curr, currentCurrency);
+  const gain = cv - cb;
+  const pct = costVal > 0 ? ((currentVal-costVal)/costVal*100) : 0;
+  const positive = gain >= 0;
+  return `<span class="font-num text-sm font-semibold" style="color:${positive?'var(--moss)':'var(--rose)'};">${positive?'+':''}${sym()}${gain.toFixed(2)} (${positive?'+':''}${pct.toFixed(1)}%)</span>`;
+}
+
+function quickEditValue(id, event){
+  event.stopPropagation();
+  const dict = i18nTexts[currentLang];
+  const h = holdings.find(x=> String(x.id)===String(id));
+  if(!h) return;
+  if(h.mode === "fixedRate"){ openEdit(id); return; }
+  const curr = h.currency || "CNY";
+  const container = event.currentTarget;
+  const isShares = h.mode === "shares";
+  const startVal = isShares ? h.currentPrice : h.currentValue;
+  const suffix = isShares ? `<span class="text-xs text-slate-400">${dict.perShareShort}</span>` : "";
+
+  container.outerHTML = `
+    <div class="text-right" onclick="event.stopPropagation();">
+      <div class="flex items-center gap-1 justify-end">
+        <span class="text-xs text-slate-400">${curr}</span>
+        <input type="number" step="0.0001" value="${startVal}" autofocus
+          class="w-24 text-right border border-slate-200 rounded-lg p-1 font-num quick-input" id="quickInput-${id}">
+        ${suffix}
+      </div>
+    </div>
+  `;
+  const input = document.getElementById(`quickInput-${id}`);
+  input.focus();
+  input.select();
+
+  let committed = false;
+  async function commit(){
+    if(committed) return;
+    committed = true;
+    const v = parseFloat(input.value);
+    if(!isNaN(v) && v !== startVal){
+      if(isShares) h.currentPrice = v;
+      else h.currentValue = v;
+      renderOverview();
+      showToast(dict.alertUpdated);
+      const { id: _drop, ...data } = h;
+      await window.fb.updateHoldingDoc(currentUid, h.id, data);
+    }
+    renderHoldingsList();
+  }
+  input.addEventListener("blur", commit);
+  input.addEventListener("keydown", (e)=>{
+    if(e.key === "Enter") input.blur();
+    if(e.key === "Escape"){ committed = true; renderHoldingsList(); }
+  });
+}
+
+function renderHoldingsList(){
+  const dict = i18nTexts[currentLang];
+  const wrap = document.getElementById("holdingsList");
+  wrap.innerHTML = "";
+  const filtered = getFilteredHoldings();
+  document.getElementById("emptyHoldings").classList.toggle("hidden", holdings.length>0);
+
+  if(holdings.length>0 && filtered.length===0){
+    wrap.innerHTML = `<p class="text-center text-sm text-slate-400 py-10">${dict.noResults}</p>`;
+    return;
+  }
+
+  const groups = {};
+  catKeys.forEach(k=> groups[k] = []);
+  filtered.forEach(h=> (groups[h.category] = groups[h.category]||[]).push(h));
+
+  catKeys.forEach(catKey=>{
+    const items = groups[catKey];
+    if(!items || items.length===0) return;
+    const subtotal = items.reduce((s,h)=> s + convert(getCurrentValue(h), h.currency||"CNY", currentCurrency), 0);
+
+    const section = document.createElement("div");
+    section.innerHTML = `
+      <div class="flex items-center justify-between mb-2 px-1">
+        <div class="flex items-center gap-2">
+          <span class="icon-badge" style="background:${catColor(catKey)}33; width:28px;height:28px;font-size:14px;">${catIcon(catKey)}</span>
+          <span class="text-sm font-semibold text-slate-500">${catLabel(catKey)}</span>
+        </div>
+        <span class="font-num text-sm text-slate-500">${sym()}${subtotal.toFixed(2)}</span>
+      </div>
+    `;
+    const list = document.createElement("div");
+    list.className = "space-y-2 mb-4";
+    items.forEach(h=>{
+      const curr = h.currency || "CNY";
+      const currentVal = getCurrentValue(h);
+      const convertedValue = convert(currentVal, curr, currentCurrency);
+      const nativeNote = curr !== currentCurrency
+        ? `<div class="text-xs text-slate-400 mt-0.5">${currencySymbols[curr]||""}${currentVal.toFixed(2)} ${curr}</div>`
+        : "";
+      let fixedRateNote = "";
+      if(h.mode === "fixedRate"){
+        const { matured } = computeFixedRateValue(h);
+        const maturedTag = matured ? `<span class="tag" style="background:var(--amber-soft); color:var(--amber); margin-left:6px;">${dict.maturedTag}</span>` : "";
+        fixedRateNote = `<div class="text-xs text-slate-400 mt-0.5">${h.rate}% ${maturedTag}</div>`;
+      }
+      let sharesNote = "";
+      if(h.mode === "shares"){
+        const symC = currencySymbols[curr] || "¥";
+        sharesNote = `<div class="text-xs text-slate-400 mt-0.5">${h.shares} × ${symC}${h.currentPrice}</div>`;
+      }
+      const row = document.createElement("div");
+      row.className = "card item-card p-4 flex justify-between items-center transition-transform cursor-pointer";
+      row.onclick = ()=> openEdit(h.id);
+      row.innerHTML = `
+        <div>
+          <div class="font-medium">${h.name} ${h.ticker?`<span class="text-slate-400 text-sm">${h.ticker}</span>`:""}</div>
+          <div class="text-sm text-slate-400 mt-0.5">${gainBadge(h)}</div>
+          ${nativeNote}
+          ${fixedRateNote}
+          ${sharesNote}
+        </div>
+        <div class="text-right font-num font-semibold quick-edit-target" data-id="${h.id}" title="${dict.tapToQuickEdit}">${sym()}${convertedValue.toFixed(2)}</div>
+      `;
+      row.querySelector(".quick-edit-target").onclick = (e)=> quickEditValue(h.id, e);
+      list.appendChild(row);
+    });
+    section.appendChild(list);
+    wrap.appendChild(section);
+  });
+}
+
+function openEdit(id){
+  const h = holdings.find(x=>x.id===id);
+  if(!h) return;
+  document.getElementById("editId").value = id;
+  renderCategorySelect(document.getElementById("e-category"), h.category);
+  document.getElementById("e-name").value = h.name;
+  document.getElementById("e-ticker").value = h.ticker || "";
+  document.getElementById("e-mode").value = h.mode || "manual";
+  document.getElementById("e-costBasis").value = h.costBasis || "";
+  document.getElementById("e-currentValue").value = h.currentValue || "";
+  document.getElementById("e-rate").value = h.rate || "";
+  document.getElementById("e-startDate").value = h.startDate || "";
+  document.getElementById("e-maturityDate").value = h.maturityDate || "";
+  document.getElementById("e-compounding").value = h.compounding || "simple";
+  document.getElementById("e-shares").value = h.shares || "";
+  document.getElementById("e-costPerShare").value = h.costPerShare || "";
+  document.getElementById("e-currentPrice").value = h.currentPrice || "";
+  document.getElementById("e-holdingCurrency").value = h.currency || "CNY";
+  document.getElementById("e-owner").value = h.owner || "";
+  document.getElementById("e-notes").value = h.notes || "";
+  document.getElementById("buyMoreBtnWrap").classList.toggle("hidden", h.mode !== "shares");
+  toggleModeFields("e-");
+  document.body.classList.add("modal-open");
+  document.getElementById("editModal").classList.remove("hidden");
+}
+function closeModal(){
+  document.getElementById("editModal").classList.add("hidden");
+  document.body.classList.remove("modal-open");
+}
+async function updateHolding(){
+  const dict = i18nTexts[currentLang];
+  const id = document.getElementById("editId").value;
+  const h = holdings.find(x=> String(x.id)===String(id));
+  if(!h) return;
+  h.category = document.getElementById("e-category").value;
+  h.name = document.getElementById("e-name").value.trim();
+  h.ticker = document.getElementById("e-ticker").value.trim();
+  h.mode = document.getElementById("e-mode").value;
+  h.currency = document.getElementById("e-holdingCurrency").value;
+  h.owner = document.getElementById("e-owner").value.trim();
+  h.notes = document.getElementById("e-notes").value.trim();
+
+  h.costBasis = null; h.currentValue = null;
+  h.rate = null; h.startDate = null; h.maturityDate = null; h.compounding = null;
+  h.shares = null; h.costPerShare = null; h.currentPrice = null;
+
+  if(h.mode === "fixedRate"){
+    h.costBasis = parseFloat(document.getElementById("e-costBasis").value) || 0;
+    h.rate = parseFloat(document.getElementById("e-rate").value) || 0;
+    h.startDate = document.getElementById("e-startDate").value;
+    h.maturityDate = document.getElementById("e-maturityDate").value || null;
+    h.compounding = document.getElementById("e-compounding").value;
+  }else if(h.mode === "shares"){
+    h.shares = parseFloat(document.getElementById("e-shares").value) || 0;
+    h.costPerShare = parseFloat(document.getElementById("e-costPerShare").value) || 0;
+    h.currentPrice = parseFloat(document.getElementById("e-currentPrice").value) || 0;
+  }else{
+    h.costBasis = parseFloat(document.getElementById("e-costBasis").value) || 0;
+    h.currentValue = parseFloat(document.getElementById("e-currentValue").value) || 0;
+  }
+  closeModal();
+  renderHoldingsList();
+  renderOverview();
+  showToast(dict.alertUpdated);
+  const { id: _drop, ...data } = h;
+  await window.fb.updateHoldingDoc(currentUid, id, data);
+}
+async function deleteHolding(){
+  const dict = i18nTexts[currentLang];
+  const id = document.getElementById("editId").value;
+  showConfirm(dict.confirmDel, async ()=>{
+    holdings = holdings.filter(x=> String(x.id)!==String(id));
+    closeModal();
+    renderHoldingsList();
+    renderOverview();
+    showToast(dict.alertDeleted);
+    await window.fb.deleteHoldingDoc(currentUid, id);
+  });
+}
+
+// ---------- Sell / Withdraw ----------
+function openSellModal(){
+  const dict = i18nTexts[currentLang];
+  sellingHoldingId = document.getElementById("editId").value;
+  const h = holdings.find(x=> String(x.id)===String(sellingHoldingId));
+  if(!h) return;
+  const isShares = h.mode === "shares";
+  document.getElementById("sellAmountField").classList.toggle("hidden", isShares);
+  document.getElementById("sellSharesFields").classList.toggle("hidden", !isShares);
+  document.getElementById("sellAmount").value = "";
+  document.getElementById("sellShares").value = "";
+  document.getElementById("sellPrice").value = isShares ? (h.currentPrice||"") : "";
+  document.getElementById("sellDate").valueAsDate = new Date();
+  document.getElementById("sellModalTitle").innerText = `${dict.sellModalTitle}: ${h.name}`;
+  document.getElementById("sellPreview").innerText = "";
+  document.getElementById("sellAmount").oninput = updateSellPreview;
+  document.getElementById("sellShares").oninput = updateSellPreview;
+  document.getElementById("sellPrice").oninput = updateSellPreview;
+  document.getElementById("sellModal").classList.remove("hidden");
+  document.getElementById("sellModal").classList.add("flex");
+}
+function closeSellModal(){
+  document.getElementById("sellModal").classList.add("hidden");
+  document.getElementById("sellModal").classList.remove("flex");
+}
+function computeSellPreview(h){
+  const el = document.getElementById("sellPreview");
+  if(h.mode === "shares"){
+    const sharesSold = parseFloat(document.getElementById("sellShares").value) || 0;
+    const sellPrice = parseFloat(document.getElementById("sellPrice").value) || 0;
+    if(sharesSold<=0 || sellPrice<=0) return null;
+    const clampedShares = Math.min(sharesSold, h.shares||0);
+    const proceeds = clampedShares * sellPrice;
+    const costPortion = clampedShares * (h.costPerShare||0);
+    return { clamped: clampedShares, costPortion, gain: proceeds - costPortion, proceeds };
+  }else{
+    const currentVal = getCurrentValue(h);
+    const costVal = getCostBasis(h);
+    const amt = parseFloat(document.getElementById("sellAmount").value) || 0;
+    if(amt<=0) return null;
+    const clamped = Math.min(amt, currentVal);
+    const proportion = currentVal>0 ? clamped/currentVal : 0;
+    const costPortion = costVal * proportion;
+    return { clamped, costPortion, gain: clamped - costPortion, proceeds: clamped };
+  }
+}
+function updateSellPreview(){
+  const dict = i18nTexts[currentLang];
+  const h = holdings.find(x=> String(x.id)===String(sellingHoldingId));
+  if(!h) return;
+  const el = document.getElementById("sellPreview");
+  const result = computeSellPreview(h);
+  if(!result){ el.innerText=""; return; }
+  const symC = currencySymbols[h.currency||"CNY"] || "¥";
+  el.innerHTML = `${dict.sellPreviewPrefix} <span style="color:${result.gain>=0?'var(--moss)':'var(--rose)'}; font-weight:600;">${result.gain>=0?'+':''}${symC}${result.gain.toFixed(2)}</span>`;
+}
+async function confirmSell(){
+  const dict = i18nTexts[currentLang];
+  const h = holdings.find(x=> String(x.id)===String(sellingHoldingId));
+  if(!h) return;
+  const curr = h.currency || "CNY";
+  const date = document.getElementById("sellDate").value || new Date().toISOString().slice(0,10);
+  const result = computeSellPreview(h);
+  if(!result) return showToast(dict.alertEmpty);
+
+  const trade = {
+    name: h.name, category: h.category, currency: curr,
+    date, amount: result.proceeds, costPortion: result.costPortion, gain: result.gain,
+    shares: h.mode === "shares" ? result.clamped : null,
+    price: h.mode === "shares" ? (parseFloat(document.getElementById("sellPrice").value)||null) : null
+  };
+  const tradeId = await window.fb.addRealized(currentUid, trade);
+  realizedTrades.unshift({ id: tradeId, ...trade });
+
+  let holdingRemoved = false;
+  if(h.mode === "shares"){
+    const remainingShares = Math.max(0, (h.shares||0) - result.clamped);
+    if(remainingShares < 0.0001){
+      holdings = holdings.filter(x=> String(x.id)!==String(h.id));
+      holdingRemoved = true;
+    }else{
+      h.shares = remainingShares;
+    }
+  }else{
+    const currentVal = getCurrentValue(h);
+    const fullSell = result.clamped >= currentVal - 0.005;
+    if(fullSell){
+      holdings = holdings.filter(x=> String(x.id)!==String(h.id));
+      holdingRemoved = true;
+    }else{
+      h.costBasis = Math.max(0, getCostBasis(h) - result.costPortion);
+      if(h.mode !== "fixedRate"){
+        h.currentValue = Math.max(0, currentVal - result.clamped);
+      }
+    }
+  }
+  closeSellModal();
+  closeModal();
+  renderHoldingsList();
+  renderOverview();
+  showToast(dict.alertSold);
+
+  if(holdingRemoved){
+    await window.fb.deleteHoldingDoc(currentUid, h.id);
+  }else{
+    const { id: _drop, ...data } = h;
+    await window.fb.updateHoldingDoc(currentUid, h.id, data);
+  }
+}
+
+// ---------- Buy More (weighted-average cost basis) ----------
+function openBuyModal(){
+  const dict = i18nTexts[currentLang];
+  const h = holdings.find(x=> String(x.id)===String(document.getElementById("editId").value));
+  if(!h) return;
+  document.getElementById("buyShares").value = "";
+  document.getElementById("buyPrice").value = h.currentPrice || "";
+  document.getElementById("buyModalTitle").innerText = `${dict.buyModalTitle}: ${h.name}`;
+  document.getElementById("buyPreview").innerText = "";
+  document.getElementById("buyShares").oninput = updateBuyPreview;
+  document.getElementById("buyPrice").oninput = updateBuyPreview;
+  document.getElementById("buyModal").classList.remove("hidden");
+  document.getElementById("buyModal").classList.add("flex");
+}
+function closeBuyModal(){
+  document.getElementById("buyModal").classList.add("hidden");
+  document.getElementById("buyModal").classList.remove("flex");
+}
+function updateBuyPreview(){
+  const dict = i18nTexts[currentLang];
+  const h = holdings.find(x=> String(x.id)===String(document.getElementById("editId").value));
+  if(!h) return;
+  const el = document.getElementById("buyPreview");
+  const addShares = parseFloat(document.getElementById("buyShares").value) || 0;
+  const buyPrice = parseFloat(document.getElementById("buyPrice").value) || 0;
+  if(addShares<=0 || buyPrice<=0){ el.innerText=""; return; }
+  const newShares = (h.shares||0) + addShares;
+  const newCostPerShare = ((h.shares||0)*(h.costPerShare||0) + addShares*buyPrice) / newShares;
+  const symC = currencySymbols[h.currency||"CNY"] || "¥";
+  el.innerHTML = `${dict.buyPreviewPrefix} ${newShares} ${dict.labelShares.toLowerCase()} @ ${symC}${newCostPerShare.toFixed(4)} ${dict.buyPreviewAvg}`;
+}
+async function confirmBuy(){
+  const dict = i18nTexts[currentLang];
+  const h = holdings.find(x=> String(x.id)===String(document.getElementById("editId").value));
+  if(!h) return;
+  const addShares = parseFloat(document.getElementById("buyShares").value);
+  const buyPrice = parseFloat(document.getElementById("buyPrice").value);
+  if(isNaN(addShares) || addShares<=0 || isNaN(buyPrice) || buyPrice<=0) return showToast(dict.alertEmpty);
+
+  const newShares = (h.shares||0) + addShares;
+  const newCostPerShare = ((h.shares||0)*(h.costPerShare||0) + addShares*buyPrice) / newShares;
+  h.shares = newShares;
+  h.costPerShare = newCostPerShare;
+  closeBuyModal();
+  closeModal();
+  renderHoldingsList();
+  renderOverview();
+  showToast(dict.alertBought);
+  const { id: _drop, ...data } = h;
+  await window.fb.updateHoldingDoc(currentUid, h.id, data);
+}
+
+function deleteRealized(id){
+  const dict = i18nTexts[currentLang];
+  showConfirm(dict.confirmDelRealized, async ()=>{
+    realizedTrades = realizedTrades.filter(t=> String(t.id)!==String(id));
+    renderOverview();
+    await window.fb.deleteRealizedDoc(currentUid, id);
+  });
+}
+function renderRealized(){
+  const dict = i18nTexts[currentLang];
+  const totalRealized = realizedTrades.reduce((s,t)=> s + convert(t.gain, t.currency||"CNY", currentCurrency), 0);
+  const totalEl = document.getElementById("totalRealized");
+  totalEl.innerText = (totalRealized>=0?"+":"") + sym() + totalRealized.toFixed(2);
+  totalEl.style.color = totalRealized>=0 ? "var(--moss)" : "var(--rose)";
+
+  const wrap = document.getElementById("realizedList");
+  wrap.innerHTML = "";
+  document.getElementById("emptyRealized").classList.toggle("hidden", realizedTrades.length>0);
+  realizedTrades.slice(0,8).forEach(t=>{
+    const converted = convert(t.gain, t.currency||"CNY", currentCurrency);
+    const symC = currencySymbols[t.currency||"CNY"] || "¥";
+    const detail = t.shares
+      ? `${t.date} · ${t.shares} ${dict.labelShares.toLowerCase()} @ ${symC}${(t.price||0).toFixed(2)}`
+      : `${t.date} · ${symC}${t.amount.toFixed(2)}`;
+    const row = document.createElement("div");
+    row.className = "flex justify-between items-center text-sm py-1.5";
+    row.innerHTML = `
+      <div>
+        <div class="font-medium">${t.name}</div>
+        <div class="text-xs text-slate-400">${detail}</div>
+      </div>
+      <div class="text-right flex items-center gap-2">
+        <div class="font-num font-semibold" style="color:${converted>=0?'var(--moss)':'var(--rose)'};">${converted>=0?'+':''}${sym()}${converted.toFixed(2)}</div>
+        <button onclick="deleteRealized('${t.id}')" class="text-xs" style="color:var(--rose);">${dict.btnDelete}</button>
+      </div>
+    `;
+    wrap.appendChild(row);
+  });
+}
+
+// ---------- Net worth history ----------
+function setHistoryRange(r){
+  historyRange = r;
+  document.querySelectorAll(".history-range-btn").forEach(b=> b.classList.toggle("active", b.dataset.hrange===r));
+  renderHistoryChart();
+}
+async function recordSnapshot(){
+  const dict = i18nTexts[currentLang];
+  const totalValue = holdings.reduce((s,h)=> s + convert(getCurrentValue(h), h.currency||"CNY", currentCurrency), 0);
+  const valueUSD = convert(totalValue, currentCurrency, "USD");
+  const today = new Date().toISOString().slice(0,10);
+  const idx = netWorthHistory.findIndex(e=> e.date === today);
+  const entry = { date: today, valueUSD };
+  if(idx>=0) netWorthHistory[idx] = entry;
+  else netWorthHistory.push(entry);
+  netWorthHistory.sort((a,b)=> a.date.localeCompare(b.date));
+  renderHistoryChart();
+  showToast(dict.alertSnapshotSaved);
+  await window.fb.setSnapshot(currentUid, today, entry);
+}
+function renderHistoryChart(){
+  const emptyEl = document.getElementById("emptyHistory");
+  const canvas = document.getElementById("historyChart");
+  emptyEl.classList.toggle("hidden", netWorthHistory.length>0);
+  canvas.classList.toggle("hidden", netWorthHistory.length===0);
+  if(netWorthHistory.length===0){
+    if(chartHistory){ chartHistory.destroy(); chartHistory=null; }
+    return;
+  }
+  const now = new Date();
+  let cutoff = null;
+  if(historyRange==="6m"){ cutoff = new Date(now); cutoff.setMonth(cutoff.getMonth()-6); }
+  if(historyRange==="1y"){ cutoff = new Date(now); cutoff.setFullYear(cutoff.getFullYear()-1); }
+  const filtered = cutoff ? netWorthHistory.filter(e=> new Date(e.date) >= cutoff) : netWorthHistory;
+  const labels = filtered.map(e=> e.date);
+  const data = filtered.map(e=> convert(e.valueUSD, "USD", currentCurrency));
+
+  if(chartHistory) chartHistory.destroy();
+  chartHistory = new Chart(canvas, {
+    type:"line",
+    data:{ labels, datasets:[{ data, borderColor:"#0B4F4A", backgroundColor:"rgba(11,79,74,0.12)", fill:true, tension:0.3, pointRadius:3 }] },
+    options:{ plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:false } } }
+  });
+}
+
+function renderOverview(){
+  const dict = i18nTexts[currentLang];
+  const totalValue = holdings.reduce((s,h)=> s + convert(getCurrentValue(h), h.currency||"CNY", currentCurrency), 0);
+  const totalCost = holdings.reduce((s,h)=> s + convert(getCostBasis(h), h.currency||"CNY", currentCurrency), 0);
+  const totalGain = totalValue - totalCost;
+  const totalGainPct = totalCost>0 ? (totalGain/totalCost*100) : 0;
+
+  document.getElementById("totalValue").innerText = sym() + totalValue.toFixed(2);
+  document.getElementById("totalCost").innerText = sym() + totalCost.toFixed(2);
+  document.getElementById("holdingCount").innerText = holdings.length;
+  document.getElementById("totalGainAmt").innerText = (totalGain>=0?"+":"") + sym() + totalGain.toFixed(2);
+  document.getElementById("totalGainPct").innerText = (totalGainPct>=0?"+":"") + totalGainPct.toFixed(1) + "%";
+  const gainLine = document.getElementById("totalGainLine");
+  gainLine.style.color = totalGain>=0 ? "var(--moss)" : "var(--rose)";
+
+  // Allocation
+  const catSums = {};
+  catKeys.forEach(k=>catSums[k]=0);
+  holdings.forEach(h=> catSums[h.category] = (catSums[h.category]||0) + convert(getCurrentValue(h), h.currency||"CNY", currentCurrency));
+  const labels = [], data = [], colors = [];
+  catKeys.forEach(k=>{
+    if(catSums[k] > 0){ labels.push(catLabel(k)); data.push(catSums[k]); colors.push(catColor(k)); }
+  });
+
+  if(chartAllocation) chartAllocation.destroy();
+  chartAllocation = new Chart(document.getElementById("pieAllocation"), {
+    type:"pie",
+    data:{ labels: labels.length?labels:["—"], datasets:[{ data:data.length?data:[1], backgroundColor: colors.length?colors:["#C9C4B8"] }] },
+    options:{ plugins:{ legend:{ display:false } } }
+  });
+
+  const legendWrap = document.getElementById("allocationLegend");
+  legendWrap.innerHTML = "";
+  labels.forEach((label,i)=>{
+    const pct = totalValue>0 ? (data[i]/totalValue*100) : 0;
+    const line = document.createElement("div");
+    line.className = "flex items-center gap-2 text-sm";
+    line.innerHTML = `
+      <span style="width:10px;height:10px;border-radius:3px;background:${colors[i]};flex-shrink:0;"></span>
+      <span class="flex-1">${label}</span>
+      <span class="font-num text-slate-500">${pct.toFixed(0)}%</span>
+      <span class="font-num font-medium w-24 text-right">${sym()}${data[i].toFixed(2)}</span>
+    `;
+    legendWrap.appendChild(line);
+  });
+
+  // Top gainer / loser
+  const withPct = holdings.map(h=>{
+    const cb = getCostBasis(h);
+    return { ...h, pct: cb>0 ? (getCurrentValue(h)-cb)/cb*100 : 0 };
+  });
+  const gainerEl = document.getElementById("topGainer");
+  const loserEl = document.getElementById("topLoser");
+  if(withPct.length===0){
+    gainerEl.innerHTML = `<span class="text-slate-400">—</span>`;
+    loserEl.innerHTML = `<span class="text-slate-400">—</span>`;
+  }else{
+    const top = [...withPct].sort((a,b)=>b.pct-a.pct)[0];
+    const bottom = [...withPct].sort((a,b)=>a.pct-b.pct)[0];
+    gainerEl.innerHTML = `<div class="font-medium">${top.name}</div><div class="font-num" style="color:var(--moss);">${top.pct>=0?'+':''}${top.pct.toFixed(1)}%</div>`;
+    loserEl.innerHTML = `<div class="font-medium">${bottom.name}</div><div class="font-num" style="color:var(--rose);">${bottom.pct>=0?'+':''}${bottom.pct.toFixed(1)}%</div>`;
+  }
+
+  // Family member breakdown
+  const ownerSums = {};
+  holdings.forEach(h=>{
+    const owner = (h.owner||"").trim() || dict.ownerMe;
+    ownerSums[owner] = (ownerSums[owner]||0) + convert(getCurrentValue(h), h.currency||"CNY", currentCurrency);
+  });
+  const ownerNames = Object.keys(ownerSums);
+  document.getElementById("familyCard").classList.toggle("hidden", ownerNames.length <= 1);
+  if(ownerNames.length > 1){
+    const familyRows = ownerNames
+      .map((name,i)=>({ name, val: ownerSums[name], color: hslToHex(Math.round(360*i/ownerNames.length), 55, 72) }))
+      .sort((a,b)=> b.val-a.val);
+    const familyWrap = document.getElementById("familyLegend");
+    familyWrap.innerHTML = "";
+    familyRows.forEach(row=>{
+      const pct = totalValue>0 ? (row.val/totalValue*100) : 0;
+      const line = document.createElement("div");
+      line.className = "flex items-center gap-2 text-sm";
+      line.innerHTML = `
+        <span style="width:10px;height:10px;border-radius:3px;background:${row.color};flex-shrink:0;"></span>
+        <span class="flex-1">${row.name}</span>
+        <span class="font-num text-slate-500">${pct.toFixed(0)}%</span>
+        <span class="font-num font-medium w-24 text-right">${sym()}${row.val.toFixed(2)}</span>
+      `;
+      familyWrap.appendChild(line);
+    });
+  }
+
+  // Owner autocomplete suggestions
+  const ownerSet = [...new Set(holdings.map(h=> (h.owner||"").trim()).filter(Boolean))];
+  document.getElementById("ownerSuggestions").innerHTML = ownerSet.map(o=> `<option value="${o}">`).join("");
+
+  renderRealized();
+  renderHistoryChart();
+}
+
+function exportCSV(){
+  let str = "\uFEFFcategory,name,ticker,mode,costBasis,currentValue,shares,costPerShare,currentPrice,currency,notes\n";
+  holdings.forEach(h=>{
+    const escape = (s) => `"${String(s??"").replace(/"/g,'""')}"`;
+    str += `${escape(catLabel(h.category))},${escape(h.name)},${escape(h.ticker||"")},${escape(h.mode||"manual")},${escape(getCostBasis(h))},${escape(getCurrentValue(h).toFixed(2))},${escape(h.shares||"")},${escape(h.costPerShare||"")},${escape(h.currentPrice||"")},${escape(h.currency||"CNY")},${escape(h.notes||"")}\n`;
+  });
+  const blob = new Blob([str],{type:"text/csv;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `net-worth-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+// ---------- Auth flow ----------
+let authMode = "signin";
+function toggleAuthMode(){
+  const dict = i18nTexts[currentLang];
+  authMode = authMode === "signin" ? "signup" : "signin";
+  document.getElementById("authSubmitBtn").innerText = authMode === "signin" ? dict.authSignIn : dict.authSignUp;
+  document.getElementById("authToggleBtn").innerText = authMode === "signin" ? dict.authNeedAccount : dict.authHaveAccount;
+  document.getElementById("authSubtitle").innerText = authMode === "signin" ? dict.authSubtitleIn : dict.authSubtitleUp;
+  document.getElementById("authError").classList.add("hidden");
+}
+async function handleAuthSubmit(){
+  const dict = i18nTexts[currentLang];
+  const email = document.getElementById("authEmail").value.trim();
+  const password = document.getElementById("authPassword").value;
+  const errEl = document.getElementById("authError");
+  errEl.classList.add("hidden");
+  if(!email || !password){
+    errEl.innerText = dict.authFillBoth;
+    errEl.classList.remove("hidden");
+    return;
+  }
+  try{
+    if(authMode === "signin"){
+      await window.fb.signIn(email, password);
+    }else{
+      await window.fb.signUp(email, password);
+    }
+  }catch(e){
+    errEl.innerText = e.message.replace(/^Firebase:\s*/,"");
+    errEl.classList.remove("hidden");
+  }
+}
+function handleSignOut(){
+  window.fb.signOutUser();
+}
+
+async function bootApp(uid){
+  currentUid = uid;
+  const data = await window.fb.loadUserData(uid);
+  holdings = data.holdings;
+  realizedTrades = data.realizedTrades;
+  netWorthHistory = data.netWorthHistory;
+  currentCurrency = data.currency;
+  document.getElementById("currencySelect").value = currentCurrency;
+  document.getElementById("holdingCurrency").value = currentCurrency;
+
+  setLanguage(currentLang);
+  loadExchangeRates();
+}
+
+function resetAppState(){
+  currentUid = null;
+  holdings = [];
+  realizedTrades = [];
+  netWorthHistory = [];
+  currentCurrency = "CNY";
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+  window.fb.onAuthChange((user)=>{
+    if(user){
+      document.getElementById("authScreen").classList.add("hidden");
+      document.getElementById("appRoot").classList.remove("hidden");
+      bootApp(user.uid);
+    }else{
+      resetAppState();
+      document.getElementById("appRoot").classList.add("hidden");
+      document.getElementById("authScreen").classList.remove("hidden");
+    }
+  });
+});
+</script>
+</div>
+</body>
+</html>
