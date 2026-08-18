@@ -137,18 +137,18 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 .font-num{ font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; letter-spacing:-0.01em; }
-.tab-active{ color:var(--teal); font-weight:700; }
-.tab-underline{ opacity:0; transform:scaleX(0.4); transition:all .2s ease; }
-.tab-underline.active{ opacity:1; transform:scaleX(1); }
-.fade-in { animation: fadeIn 0.25s ease-out; }
+.sidebar-link{ color:var(--ink-soft); }
+.sidebar-link.tab-active{ background:var(--teal-soft); color:var(--teal); font-weight:700; }
+.fade-in { animation: fadeIn 0.2s ease-out; }
 @keyframes fadeIn{ from {opacity:0;transform:translateY(4px);} to {opacity:1;transform:translateY(0);} }
-@keyframes popIn{ from {opacity:0;transform:scale(0.94);} to {opacity:1;transform:scale(1);} }
-.item-card:active { transform: scale(0.985); transition: transform 0.12s ease; }
-.quick-edit-target{ border-bottom:1px dashed var(--line); padding-bottom:1px; }
-.quick-edit-target:active{ opacity:0.6; }
+@keyframes popIn{ from {opacity:0;transform:scale(0.96);} to {opacity:1;transform:scale(1);} }
+.item-card{ transition: background-color 0.12s ease; }
+.item-row:hover{ background:var(--teal-soft); }
+.quick-edit-target{ border-bottom:1px dashed var(--line); padding-bottom:1px; cursor:pointer; }
+.quick-edit-target:hover{ border-color:var(--teal); color:var(--teal); }
 .history-range-btn{ background:var(--teal-soft); color:var(--ink-soft); }
 .history-range-btn.active{ background:var(--teal); color:#fff; font-weight:600; }
-input, select, textarea { background: var(--card-bg); color: var(--ink); }
+input, select, textarea { background: var(--card-bg); color: var(--ink); font-size:15px; }
 input::placeholder, textarea::placeholder{ color: var(--ink-soft); opacity:1; }
 input:focus, select:focus {
   outline: none;
@@ -156,14 +156,37 @@ input:focus, select:focus {
   box-shadow: 0 0 0 3px rgba(11,79,74,0.12);
 }
 html[data-theme="dark"] input, html[data-theme="dark"] select { border-color: var(--line) !important; }
-.tag { font-size: 11px; padding: 3px 8px; border-radius: 999px; font-weight:600; letter-spacing:.01em; }
-.card{ background:var(--card-bg); border:1px solid var(--line); border-radius:20px; }
+.tag { font-size: 12px; padding: 3px 9px; border-radius: 999px; font-weight:600; letter-spacing:.01em; }
+.card{ background:var(--card-bg); border:1px solid var(--line); border-radius:16px; }
 .card-gradient-teal{ background:linear-gradient(145deg,var(--card-bg),var(--card-bg2)); border:1px solid var(--teal-soft); }
 .card-gradient-amber{ background:linear-gradient(145deg,var(--card-bg),var(--card-bg2-amber)); border:1px solid var(--amber-soft); }
-.icon-badge{ width:38px; height:38px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+.icon-badge{ width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:17px; flex-shrink:0; }
 ::selection{ background: var(--teal-soft); }
 body.modal-open{ overflow:hidden; }
 .bg-white{ background:var(--card-bg) !important; }
+
+/* ---- Desktop shell ---- */
+.app-shell{ display:flex; min-height:100vh; }
+.app-sidebar{
+  width:232px; flex-shrink:0; position:sticky; top:0; height:100vh; overflow-y:auto;
+  border-right:1px solid var(--line); padding:20px 14px; display:flex; flex-direction:column;
+}
+.app-main{ flex:1; min-width:0; padding:32px 40px 64px; }
+.app-main-inner{ max-width:1120px; margin:0 auto; }
+.sidebar-link{ display:flex; align-items:center; gap:10px; width:100%; text-align:left; padding:10px 12px; border-radius:10px; font-size:14.5px; font-weight:500; transition:background-color .12s ease; }
+.sidebar-link:hover{ background:var(--teal-soft); }
+.grid-2{ display:grid; grid-template-columns:1fr; gap:16px; }
+@media (min-width:900px){ .grid-2{ grid-template-columns:1fr 1fr; } }
+.grid-3{ display:grid; grid-template-columns:1fr; gap:16px; }
+@media (min-width:900px){ .grid-3{ grid-template-columns:repeat(3,1fr); } }
+.grid-4{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+@media (min-width:900px){ .grid-4{ grid-template-columns:repeat(4,1fr); } }
+table.holdings-table{ width:100%; border-collapse:collapse; }
+table.holdings-table th{ text-align:left; font-size:12px; text-transform:uppercase; letter-spacing:.03em; color:var(--ink-soft); font-weight:600; padding:8px 12px; border-bottom:1px solid var(--line); }
+table.holdings-table th.num, table.holdings-table td.num{ text-align:right; }
+table.holdings-table td{ padding:12px; border-bottom:1px solid var(--line); vertical-align:middle; }
+table.holdings-table tr.item-row{ cursor:pointer; }
+table.holdings-table tr.cat-header td{ background:var(--teal-soft); font-weight:600; font-size:13px; color:var(--teal); border-bottom:none; padding:8px 12px; }
 </style>
 <script>
 tailwind.config = {
@@ -173,7 +196,7 @@ tailwind.config = {
 }
 </script>
 </head>
-<body class="max-w-lg mx-auto min-h-screen">
+<body class="min-h-screen">
 
 <!-- Auth screen -->
 <div id="authScreen" class="fixed inset-0 z-40 flex items-center justify-center p-5" style="background:var(--paper);">
@@ -194,64 +217,51 @@ tailwind.config = {
 </div>
 
 <div id="appRoot" class="hidden">
-
-<div class="sticky top-0 z-10 backdrop-blur-md" style="background:var(--paper); opacity:0.97; border-bottom:1px solid var(--line);">
-  <div class="flex justify-between items-center px-4 pt-3">
-    <h1 class="text-[17px] font-bold tracking-tight" style="color:var(--ink);">Net Worth</h1>
-    <div class="flex items-center gap-2">
-      <button id="themeToggle" onclick="toggleTheme()" class="text-lg leading-none px-1" title="Toggle dark mode">🌙</button>
-      <button onclick="handleSignOut()" class="text-sm px-1" style="color:var(--ink-soft);" data-i18n="authSignOut">Sign out</button>
-      <select id="currencySelect" class="border-0 bg-transparent text-sm text-slate-500">
+<div class="app-shell">
+<aside class="app-sidebar">
+  <h1 class="text-[17px] font-bold tracking-tight px-2 mb-1" style="color:var(--ink);">🐱 Net Worth</h1>
+  <p class="text-[11px] text-slate-400 px-2 mb-5" data-i18n="authSameLoginNote">Same email/password as your Ledger app.</p>
+  <nav class="space-y-1">
+    <button class="sidebar-link tab-active" data-page="add"><span>➕</span><span data-i18n="tabAdd">Add</span></button>
+    <button class="sidebar-link" data-page="overview"><span>📊</span><span data-i18n="tabOverview">Overview</span></button>
+    <button class="sidebar-link" data-page="holdings"><span>📋</span><span data-i18n="tabHoldings">Holdings</span></button>
+  </nav>
+  <div class="flex-1"></div>
+  <div class="space-y-2 pt-4 mt-4" style="border-top:1px solid var(--line);">
+    <div class="flex items-center gap-2 px-2">
+      <select id="currencySelect" class="border border-slate-200 rounded-lg text-sm text-slate-500 py-1 flex-1">
         <option value="CNY">¥ CNY</option>
         <option value="USD">$ USD</option>
         <option value="EUR">€ EUR</option>
         <option value="GBP">£ GBP</option>
       </select>
-      <select id="langSelect" class="border-0 bg-transparent text-sm text-slate-500">
+      <select id="langSelect" class="border border-slate-200 rounded-lg text-sm text-slate-500 py-1">
         <option value="en">English</option>
         <option value="zh">中文</option>
       </select>
     </div>
+    <div class="flex items-center justify-between px-2">
+      <button id="themeToggle" onclick="toggleTheme()" class="text-lg leading-none" title="Toggle dark mode">🌙</button>
+      <button onclick="handleSignOut()" class="text-sm" style="color:var(--ink-soft);" data-i18n="authSignOut">Sign out</button>
+    </div>
   </div>
-  <div class="flex text-[15px]">
-    <button class="flex-1 pt-2 pb-2.5 text-center transition-colors relative text-slate-500 tab-active" data-page="add" data-i18n="tabAdd">Add</button>
-    <button class="flex-1 pt-2 pb-2.5 text-center transition-colors relative text-slate-500" data-page="overview" data-i18n="tabOverview">Overview</button>
-    <button class="flex-1 pt-2 pb-2.5 text-center transition-colors relative text-slate-500" data-page="holdings" data-i18n="tabHoldings">Holdings</button>
-  </div>
-  <div class="flex px-4">
-    <div class="flex-1 flex justify-center"><div class="tab-underline active h-[2.5px] w-10 rounded-full" style="background:var(--teal);"></div></div>
-    <div class="flex-1 flex justify-center"><div class="tab-underline h-[2.5px] w-10 rounded-full" style="background:var(--teal);"></div></div>
-    <div class="flex-1 flex justify-center"><div class="tab-underline h-[2.5px] w-10 rounded-full" style="background:var(--teal);"></div></div>
-  </div>
-</div>
+</aside>
+<main class="app-main">
+<div class="app-main-inner">
 
 <!-- Overview -->
 <div id="page-overview" class="p-4 hidden fade-in space-y-4">
-  <div class="card card-gradient-teal p-5 text-center">
+  <div class="card card-gradient-teal p-8 text-center">
     <p class="text-[13px] font-semibold text-slate-500 uppercase tracking-wide" data-i18n="totalNetWorth">Total Net Worth</p>
-    <p id="totalValue" class="font-num font-bold text-3xl mt-1">¥0.00</p>
-    <p id="totalGainLine" class="font-num text-sm mt-2">
+    <p id="totalValue" class="font-num font-bold text-5xl mt-2">¥0.00</p>
+    <p id="totalGainLine" class="font-num text-base mt-3">
       <span id="totalGainAmt">¥0.00</span> (<span id="totalGainPct">0%</span>)
       <span class="text-slate-400" data-i18n="allTime">all time</span>
     </p>
     <p id="rateStatus" class="text-[11px] text-slate-400 mt-2"></p>
   </div>
 
-  <div class="card p-5">
-    <div class="flex items-center justify-between mb-3">
-      <p class="text-[13px] font-semibold text-slate-500 uppercase tracking-wide" data-i18n="historyTitle">Net Worth History</p>
-      <div class="flex gap-1">
-        <button data-hrange="6m" onclick="setHistoryRange('6m')" class="history-range-btn text-xs px-2 py-1 rounded-lg" data-i18n="range6m">6M</button>
-        <button data-hrange="1y" onclick="setHistoryRange('1y')" class="history-range-btn text-xs px-2 py-1 rounded-lg" data-i18n="range1y">1Y</button>
-        <button data-hrange="all" onclick="setHistoryRange('all')" class="history-range-btn text-xs px-2 py-1 rounded-lg active" data-i18n="rangeAll">All</button>
-      </div>
-    </div>
-    <canvas id="historyChart" height="140"></canvas>
-    <p id="emptyHistory" class="hidden text-center text-sm text-slate-400 py-6" data-i18n="emptyHistory">No snapshots yet — tap below to record today's.</p>
-    <button onclick="recordSnapshot()" class="w-full mt-3 py-2.5 rounded-xl text-white font-medium text-sm" style="background:var(--teal);" data-i18n="btnSnapshot">Record Today's Snapshot</button>
-  </div>
-
-  <div class="grid grid-cols-2 gap-3">
+  <div class="grid-4">
     <div class="card p-4">
       <p class="text-[12px] text-slate-400" data-i18n="totalCost">Total Cost Basis</p>
       <p id="totalCost" class="font-num font-semibold text-lg mt-1">¥0.00</p>
@@ -260,20 +270,6 @@ tailwind.config = {
       <p class="text-[12px] text-slate-400" data-i18n="holdingCount">Holdings</p>
       <p id="holdingCount" class="font-num font-semibold text-lg mt-1">0</p>
     </div>
-  </div>
-
-  <div class="card card-gradient-amber p-5">
-    <p class="text-[13px] font-semibold text-slate-500 uppercase tracking-wide mb-3" data-i18n="allocationTitle">Allocation</p>
-    <canvas id="pieAllocation"></canvas>
-    <div id="allocationLegend" class="space-y-2 mt-4"></div>
-  </div>
-
-  <div id="familyCard" class="card p-5 hidden">
-    <p class="text-[13px] font-semibold text-slate-500 uppercase tracking-wide mb-3" data-i18n="familyTitle">By Family Member</p>
-    <div id="familyLegend" class="space-y-2"></div>
-  </div>
-
-  <div class="grid grid-cols-2 gap-3">
     <div class="card p-4">
       <p class="text-[12px] text-slate-400 mb-1" data-i18n="topGainer">Top Gainer</p>
       <div id="topGainer" class="text-sm"></div>
@@ -284,13 +280,42 @@ tailwind.config = {
     </div>
   </div>
 
-  <div class="card p-5">
-    <div class="flex items-center justify-between mb-3">
-      <p class="text-[13px] font-semibold text-slate-500 uppercase tracking-wide" data-i18n="realizedTitle">Realized Gains</p>
-      <span id="totalRealized" class="font-num font-semibold text-sm"></span>
+  <div class="grid-2">
+    <div class="card p-5">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-[13px] font-semibold text-slate-500 uppercase tracking-wide" data-i18n="historyTitle">Net Worth History</p>
+        <div class="flex gap-1">
+          <button data-hrange="6m" onclick="setHistoryRange('6m')" class="history-range-btn text-xs px-2 py-1 rounded-lg" data-i18n="range6m">6M</button>
+          <button data-hrange="1y" onclick="setHistoryRange('1y')" class="history-range-btn text-xs px-2 py-1 rounded-lg" data-i18n="range1y">1Y</button>
+          <button data-hrange="all" onclick="setHistoryRange('all')" class="history-range-btn text-xs px-2 py-1 rounded-lg active" data-i18n="rangeAll">All</button>
+        </div>
+      </div>
+      <canvas id="historyChart" height="150"></canvas>
+      <p id="emptyHistory" class="hidden text-center text-sm text-slate-400 py-6" data-i18n="emptyHistory">No snapshots yet — tap below to record today's.</p>
+      <button onclick="recordSnapshot()" class="w-full mt-3 py-2.5 rounded-xl text-white font-medium text-sm" style="background:var(--teal);" data-i18n="btnSnapshot">Record Today's Snapshot</button>
     </div>
-    <div id="realizedList" class="space-y-1"></div>
-    <p id="emptyRealized" class="hidden text-center text-sm text-slate-400 py-6" data-i18n="emptyRealized">No sales recorded yet.</p>
+
+    <div class="card card-gradient-amber p-5">
+      <p class="text-[13px] font-semibold text-slate-500 uppercase tracking-wide mb-3" data-i18n="allocationTitle">Allocation</p>
+      <canvas id="pieAllocation" height="150"></canvas>
+      <div id="allocationLegend" class="space-y-2 mt-4"></div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card p-5">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-[13px] font-semibold text-slate-500 uppercase tracking-wide" data-i18n="realizedTitle">Realized Gains</p>
+        <span id="totalRealized" class="font-num font-semibold text-sm"></span>
+      </div>
+      <div id="realizedList" class="space-y-1"></div>
+      <p id="emptyRealized" class="hidden text-center text-sm text-slate-400 py-6" data-i18n="emptyRealized">No sales recorded yet.</p>
+    </div>
+
+    <div id="familyCard" class="card p-5 hidden">
+      <p class="text-[13px] font-semibold text-slate-500 uppercase tracking-wide mb-3" data-i18n="familyTitle">By Family Member</p>
+      <div id="familyLegend" class="space-y-2"></div>
+    </div>
   </div>
 
   <div class="flex justify-end">
@@ -300,34 +325,52 @@ tailwind.config = {
 
 <!-- Holdings -->
 <div id="page-holdings" class="p-4 hidden fade-in space-y-4">
-  <input type="text" id="searchInput" data-i18n-placeholder="searchPh" placeholder="Search name or ticker" class="w-full border border-slate-200 rounded-xl p-2.5 text-sm">
-  <div id="holdingsList" class="space-y-5"></div>
+  <input type="text" id="searchInput" data-i18n-placeholder="searchPh" placeholder="Search name or ticker" class="w-full border border-slate-200 rounded-xl p-2.5 text-sm max-w-sm">
+  <div class="card overflow-hidden">
+    <table class="holdings-table">
+      <thead>
+        <tr>
+          <th data-i18n="thName">Name</th>
+          <th data-i18n="thOwner">Owner</th>
+          <th class="num" data-i18n="thCostBasis">Cost Basis</th>
+          <th class="num" data-i18n="thCurrentValue">Current Value</th>
+          <th class="num" data-i18n="thGainLoss">Gain/Loss</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="holdingsList"></tbody>
+    </table>
+  </div>
   <div id="emptyHoldings" class="hidden text-center py-16 text-slate-400 text-sm" data-i18n="emptyHoldings">No holdings yet. Add your first one on the Add tab.</div>
 </div>
 
 <!-- Add -->
-<div id="page-add" class="p-4 fade-in space-y-4">
-  <div class="card p-5 space-y-4">
+<div id="page-add" class="p-4 fade-in space-y-4 max-w-2xl">
+  <div class="card p-6 space-y-4">
     <p class="text-[13px] font-semibold text-slate-500 uppercase tracking-wide" data-i18n="newHolding">New Holding</p>
-    <div>
-      <label class="text-slate-500 text-sm block mb-1" data-i18n="labelCategory">Category</label>
-      <select id="category" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1"></select>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="text-slate-500 text-sm block mb-1" data-i18n="labelCategory">Category</label>
+        <select id="category" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1"></select>
+      </div>
+      <div>
+        <label class="text-slate-500 text-sm block mb-1" data-i18n="labelName">Name</label>
+        <input type="text" id="name" data-i18n-placeholder="namePh" placeholder="e.g. Apple Inc." class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
+      </div>
     </div>
-    <div>
-      <label class="text-slate-500 text-sm block mb-1" data-i18n="labelName">Name</label>
-      <input type="text" id="name" data-i18n-placeholder="namePh" placeholder="e.g. Apple Inc." class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
-    </div>
-    <div>
-      <label class="text-slate-500 text-sm block mb-1" data-i18n="labelTicker">Ticker (optional)</label>
-      <input type="text" id="ticker" placeholder="AAPL" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
-    </div>
-    <div>
-      <label class="text-slate-500 text-sm block mb-1" data-i18n="labelMode">Tracking Mode</label>
-      <select id="mode" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
-        <option value="manual" data-i18n="modeManual">Manual entry</option>
-        <option value="shares" data-i18n="modeShares">Shares &amp; Price</option>
-        <option value="fixedRate" data-i18n="modeFixedRate">Fixed-rate deposit</option>
-      </select>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="text-slate-500 text-sm block mb-1" data-i18n="labelTicker">Ticker (optional)</label>
+        <input type="text" id="ticker" placeholder="AAPL" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
+      </div>
+      <div>
+        <label class="text-slate-500 text-sm block mb-1" data-i18n="labelMode">Tracking Mode</label>
+        <select id="mode" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
+          <option value="manual" data-i18n="modeManual">Manual entry</option>
+          <option value="shares" data-i18n="modeShares">Shares &amp; Price</option>
+          <option value="fixedRate" data-i18n="modeFixedRate">Fixed-rate deposit</option>
+        </select>
+      </div>
     </div>
     <div class="grid grid-cols-2 gap-3">
       <div id="costBasisFieldWrap">
@@ -380,19 +423,21 @@ tailwind.config = {
         </select>
       </div>
     </div>
-    <div>
-      <label class="text-slate-500 text-sm block mb-1" data-i18n="labelHoldingCurrency">Currency</label>
-      <select id="holdingCurrency" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
-        <option value="CNY">¥ CNY</option>
-        <option value="USD">$ USD</option>
-        <option value="EUR">€ EUR</option>
-        <option value="GBP">£ GBP</option>
-      </select>
-    </div>
-    <div>
-      <label class="text-slate-500 text-sm block mb-1" data-i18n="labelOwner">Family Member (optional)</label>
-      <input type="text" id="owner" list="ownerSuggestions" data-i18n-placeholder="ownerPh" placeholder="e.g. Me, Mom, Dad" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
-      <datalist id="ownerSuggestions"></datalist>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="text-slate-500 text-sm block mb-1" data-i18n="labelHoldingCurrency">Currency</label>
+        <select id="holdingCurrency" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
+          <option value="CNY">¥ CNY</option>
+          <option value="USD">$ USD</option>
+          <option value="EUR">€ EUR</option>
+          <option value="GBP">£ GBP</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-slate-500 text-sm block mb-1" data-i18n="labelOwner">Family Member (optional)</label>
+        <input type="text" id="owner" list="ownerSuggestions" data-i18n-placeholder="ownerPh" placeholder="e.g. Me, Mom, Dad" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
+        <datalist id="ownerSuggestions"></datalist>
+      </div>
     </div>
     <div>
       <label class="text-slate-500 text-sm block mb-1" data-i18n="labelNotes">Notes (optional)</label>
@@ -576,6 +621,7 @@ const i18nTexts = {
     totalCost:"Total Cost Basis", holdingCount:"Holdings",
     allocationTitle:"Allocation", topGainer:"Top Gainer", topLoser:"Top Loser",
     btnExport:"Export CSV", searchPh:"Search name or ticker",
+    thName:"Name", thOwner:"Owner", thCostBasis:"Cost Basis", thCurrentValue:"Current Value", thGainLoss:"Gain/Loss", btnEditShort:"Edit",
     emptyHoldings:"No holdings yet. Add your first one on the Add tab.",
     newHolding:"New Holding", labelCategory:"Category", labelName:"Name", namePh:"e.g. Apple Inc.",
     labelTicker:"Ticker (optional)", labelCostBasis:"Cost Basis", labelCurrentValue:"Current Value",
@@ -619,6 +665,7 @@ const i18nTexts = {
     totalCost:"总投入成本", holdingCount:"持仓数量",
     allocationTitle:"资产配置", topGainer:"涨幅最大", topLoser:"跌幅最大",
     btnExport:"导出CSV", searchPh:"搜索名称或代码",
+    thName:"名称", thOwner:"家庭成员", thCostBasis:"投入成本", thCurrentValue:"当前价值", thGainLoss:"盈亏", btnEditShort:"编辑",
     emptyHoldings:"暂无持仓，请在“添加”页添加第一笔",
     newHolding:"新增持仓", labelCategory:"类别", labelName:"名称", namePh:"例如：苹果公司",
     labelTicker:"代码（可选）", labelCostBasis:"投入成本", labelCurrentValue:"当前价值",
@@ -830,12 +877,10 @@ function toggleModeFields(prefix){
 document.getElementById("mode").onchange = ()=> toggleModeFields("");
 document.getElementById("e-mode").onchange = ()=> toggleModeFields("e-");
 
-document.querySelectorAll("[data-page]").forEach((btn, idx)=>{
+document.querySelectorAll("[data-page]").forEach((btn)=>{
   btn.onclick = ()=>{
     document.querySelectorAll("[data-page]").forEach(b=>b.classList.remove("tab-active"));
     btn.classList.add("tab-active");
-    document.querySelectorAll(".tab-underline").forEach(u=>u.classList.remove("active"));
-    document.querySelectorAll(".tab-underline")[idx].classList.add("active");
     const target = btn.dataset.page;
     document.querySelectorAll("[id^='page-']").forEach(p=>p.classList.add("hidden"));
     document.getElementById("page-"+target).classList.remove("hidden");
@@ -932,14 +977,14 @@ function quickEditValue(id, event){
   const suffix = isShares ? `<span class="text-xs text-slate-400">${dict.perShareShort}</span>` : "";
 
   container.outerHTML = `
-    <div class="text-right" onclick="event.stopPropagation();">
+    <td class="num" onclick="event.stopPropagation();">
       <div class="flex items-center gap-1 justify-end">
         <span class="text-xs text-slate-400">${curr}</span>
         <input type="number" step="0.0001" value="${startVal}" autofocus
           class="w-24 text-right border border-slate-200 rounded-lg p-1 font-num quick-input" id="quickInput-${id}">
         ${suffix}
       </div>
-    </div>
+    </td>
   `;
   const input = document.getElementById(`quickInput-${id}`);
   input.focus();
@@ -975,7 +1020,7 @@ function renderHoldingsList(){
   document.getElementById("emptyHoldings").classList.toggle("hidden", holdings.length>0);
 
   if(holdings.length>0 && filtered.length===0){
-    wrap.innerHTML = `<p class="text-center text-sm text-slate-400 py-10">${dict.noResults}</p>`;
+    wrap.innerHTML = `<tr><td colspan="6" class="text-center text-sm text-slate-400 py-10">${dict.noResults}</td></tr>`;
     return;
   }
 
@@ -988,54 +1033,57 @@ function renderHoldingsList(){
     if(!items || items.length===0) return;
     const subtotal = items.reduce((s,h)=> s + convert(getCurrentValue(h), h.currency||"CNY", currentCurrency), 0);
 
-    const section = document.createElement("div");
-    section.innerHTML = `
-      <div class="flex items-center justify-between mb-2 px-1">
-        <div class="flex items-center gap-2">
-          <span class="icon-badge" style="background:${catColor(catKey)}33; width:28px;height:28px;font-size:14px;">${catIcon(catKey)}</span>
-          <span class="text-sm font-semibold text-slate-500">${catLabel(catKey)}</span>
-        </div>
-        <span class="font-num text-sm text-slate-500">${sym()}${subtotal.toFixed(2)}</span>
-      </div>
+    const catRow = document.createElement("tr");
+    catRow.className = "cat-header";
+    catRow.innerHTML = `
+      <td colspan="3">
+        <span class="inline-flex items-center gap-2">
+          <span class="icon-badge" style="background:${catColor(catKey)}33; width:24px;height:24px;font-size:13px;">${catIcon(catKey)}</span>
+          ${catLabel(catKey)}
+        </span>
+      </td>
+      <td class="num font-num">${sym()}${subtotal.toFixed(2)}</td>
+      <td colspan="2"></td>
     `;
-    const list = document.createElement("div");
-    list.className = "space-y-2 mb-4";
+    wrap.appendChild(catRow);
+
     items.forEach(h=>{
       const curr = h.currency || "CNY";
       const currentVal = getCurrentValue(h);
+      const costVal = getCostBasis(h);
       const convertedValue = convert(currentVal, curr, currentCurrency);
+      const convertedCost = convert(costVal, curr, currentCurrency);
       const nativeNote = curr !== currentCurrency
-        ? `<div class="text-xs text-slate-400 mt-0.5">${currencySymbols[curr]||""}${currentVal.toFixed(2)} ${curr}</div>`
-        : "";
-      let fixedRateNote = "";
+        ? `<div class="text-xs text-slate-400">${currencySymbols[curr]||""}${currentVal.toFixed(2)} ${curr}</div>` : "";
+      let subNote = "";
       if(h.mode === "fixedRate"){
         const { matured } = computeFixedRateValue(h);
         const maturedTag = matured ? `<span class="tag" style="background:var(--amber-soft); color:var(--amber); margin-left:6px;">${dict.maturedTag}</span>` : "";
-        fixedRateNote = `<div class="text-xs text-slate-400 mt-0.5">${h.rate}% ${maturedTag}</div>`;
-      }
-      let sharesNote = "";
-      if(h.mode === "shares"){
+        subNote = `<div class="text-xs text-slate-400">${h.rate}% ${maturedTag}</div>`;
+      }else if(h.mode === "shares"){
         const symC = currencySymbols[curr] || "¥";
-        sharesNote = `<div class="text-xs text-slate-400 mt-0.5">${h.shares} × ${symC}${h.currentPrice}</div>`;
+        subNote = `<div class="text-xs text-slate-400">${h.shares} × ${symC}${h.currentPrice}</div>`;
       }
-      const row = document.createElement("div");
-      row.className = "card item-card p-4 flex justify-between items-center transition-transform cursor-pointer";
+      const row = document.createElement("tr");
+      row.className = "item-row";
       row.onclick = ()=> openEdit(h.id);
       row.innerHTML = `
-        <div>
+        <td>
           <div class="font-medium">${h.name} ${h.ticker?`<span class="text-slate-400 text-sm">${h.ticker}</span>`:""}</div>
-          <div class="text-sm text-slate-400 mt-0.5">${gainBadge(h)}</div>
+          ${subNote}
+        </td>
+        <td class="text-sm text-slate-500">${h.owner||""}</td>
+        <td class="num font-num">${sym()}${convertedCost.toFixed(2)}</td>
+        <td class="num font-num font-semibold quick-edit-target" data-id="${h.id}" title="${dict.tapToQuickEdit}">
+          ${sym()}${convertedValue.toFixed(2)}
           ${nativeNote}
-          ${fixedRateNote}
-          ${sharesNote}
-        </div>
-        <div class="text-right font-num font-semibold quick-edit-target" data-id="${h.id}" title="${dict.tapToQuickEdit}">${sym()}${convertedValue.toFixed(2)}</div>
+        </td>
+        <td class="num">${gainBadge(h)}</td>
+        <td class="text-right"><button class="text-sm" style="color:var(--teal);" onclick="event.stopPropagation(); openEdit('${h.id}')" data-i18n="btnEditShort">Edit</button></td>
       `;
-      row.querySelector(".quick-edit-target").onclick = (e)=> quickEditValue(h.id, e);
-      list.appendChild(row);
+      row.querySelector(".quick-edit-target").onclick = (e)=>{ e.stopPropagation(); quickEditValue(h.id, e); };
+      wrap.appendChild(row);
     });
-    section.appendChild(list);
-    wrap.appendChild(section);
   });
 }
 
@@ -1551,6 +1599,9 @@ document.addEventListener('DOMContentLoaded', function(){
   });
 });
 </script>
+</div>
+</main>
+</div>
 </div>
 </body>
 </html>
