@@ -251,6 +251,10 @@ tailwind.config = {
 
 <!-- Overview -->
 <div id="page-overview" class="p-4 hidden fade-in space-y-4">
+  <div class="flex items-center gap-2">
+    <label class="text-sm text-slate-500" data-i18n="labelViewing">Viewing</label>
+    <select id="ownerFilter" class="border border-slate-200 rounded-lg text-sm p-1.5"></select>
+  </div>
   <div class="card card-gradient-teal p-8 text-center">
     <p class="text-[13px] font-semibold text-slate-500 uppercase tracking-wide" data-i18n="totalNetWorth">Total Net Worth</p>
     <p id="totalValue" class="font-num font-bold text-5xl mt-2">¥0.00</p>
@@ -292,7 +296,8 @@ tailwind.config = {
       </div>
       <canvas id="historyChart" height="150"></canvas>
       <p id="emptyHistory" class="hidden text-center text-sm text-slate-400 py-6" data-i18n="emptyHistory">No snapshots yet — tap below to record today's.</p>
-      <button onclick="recordSnapshot()" class="w-full mt-3 py-2.5 rounded-xl text-white font-medium text-sm" style="background:var(--teal);" data-i18n="btnSnapshot">Record Today's Snapshot</button>
+      <p id="historyMemberNote" class="hidden text-center text-sm text-slate-400 py-6" data-i18n="historyMemberNote">History is only available for the combined view.</p>
+      <button id="snapshotBtn" onclick="recordSnapshot()" class="w-full mt-3 py-2.5 rounded-xl text-white font-medium text-sm" style="background:var(--teal);" data-i18n="btnSnapshot">Record Today's Snapshot</button>
     </div>
 
     <div class="card card-gradient-amber p-5">
@@ -325,7 +330,27 @@ tailwind.config = {
 
 <!-- Holdings -->
 <div id="page-holdings" class="p-4 hidden fade-in space-y-4">
-  <input type="text" id="searchInput" data-i18n-placeholder="searchPh" placeholder="Search name or ticker" class="w-full border border-slate-200 rounded-xl p-2.5 text-sm max-w-sm">
+  <input type="text" id="searchInput" data-i18n-placeholder="searchPhFull" placeholder="Search name, ticker, category, or owner" class="w-full border border-slate-200 rounded-xl p-2.5 text-sm max-w-sm">
+
+  <div class="grid-4">
+    <div class="card p-4">
+      <p class="text-[12px] text-slate-400" data-i18n="totalCost">Total Cost Basis</p>
+      <p id="holdingsTotalCost" class="font-num font-semibold text-lg mt-1">¥0.00</p>
+    </div>
+    <div class="card p-4">
+      <p class="text-[12px] text-slate-400" data-i18n="thCurrentValue">Current Value</p>
+      <p id="holdingsTotalValue" class="font-num font-semibold text-lg mt-1">¥0.00</p>
+    </div>
+    <div class="card p-4">
+      <p class="text-[12px] text-slate-400" data-i18n="thGainLoss">Gain/Loss</p>
+      <p id="holdingsTotalGain" class="font-num font-semibold text-lg mt-1">¥0.00</p>
+    </div>
+    <div class="card p-4">
+      <p class="text-[12px] text-slate-400" data-i18n="monthlyChangeTitle">Change vs 30 Days Ago</p>
+      <p id="monthlyChangeVal" class="font-num font-semibold text-lg mt-1">—</p>
+    </div>
+  </div>
+
   <div class="card overflow-hidden">
     <table class="holdings-table">
       <thead>
@@ -345,10 +370,10 @@ tailwind.config = {
 </div>
 
 <!-- Add -->
-<div id="page-add" class="p-4 fade-in space-y-4 max-w-2xl">
+<div id="page-add" class="p-4 fade-in space-y-4 max-w-4xl">
   <div class="card p-6 space-y-4">
     <p class="text-[13px] font-semibold text-slate-500 uppercase tracking-wide" data-i18n="newHolding">New Holding</p>
-    <div class="grid grid-cols-2 gap-3">
+    <div class="grid grid-cols-3 gap-3">
       <div>
         <label class="text-slate-500 text-sm block mb-1" data-i18n="labelCategory">Category</label>
         <select id="category" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1"></select>
@@ -357,12 +382,12 @@ tailwind.config = {
         <label class="text-slate-500 text-sm block mb-1" data-i18n="labelName">Name</label>
         <input type="text" id="name" data-i18n-placeholder="namePh" placeholder="e.g. Apple Inc." class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
       </div>
-    </div>
-    <div class="grid grid-cols-2 gap-3">
       <div>
         <label class="text-slate-500 text-sm block mb-1" data-i18n="labelTicker">Ticker (optional)</label>
         <input type="text" id="ticker" placeholder="AAPL" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
       </div>
+    </div>
+    <div class="grid grid-cols-3 gap-3">
       <div>
         <label class="text-slate-500 text-sm block mb-1" data-i18n="labelMode">Tracking Mode</label>
         <select id="mode" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
@@ -371,59 +396,6 @@ tailwind.config = {
           <option value="fixedRate" data-i18n="modeFixedRate">Fixed-rate deposit</option>
         </select>
       </div>
-    </div>
-    <div class="grid grid-cols-2 gap-3">
-      <div id="costBasisFieldWrap">
-        <label class="text-slate-500 text-sm block mb-1" id="costBasisLabel" data-i18n="labelCostBasis">Cost Basis</label>
-        <input type="number" step="0.01" id="costBasis" placeholder="0.00" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1 font-num">
-      </div>
-      <div id="currentValueField">
-        <label class="text-slate-500 text-sm block mb-1" data-i18n="labelCurrentValue">Current Value</label>
-        <input type="number" step="0.01" id="currentValue" placeholder="0.00" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1 font-num">
-      </div>
-    </div>
-    <div id="sharesFields" class="hidden space-y-4">
-      <div>
-        <label class="text-slate-500 text-sm block mb-1" data-i18n="labelShares">Shares / Units</label>
-        <input type="number" step="0.0001" id="shares" placeholder="0" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1 font-num">
-      </div>
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="text-slate-500 text-sm block mb-1" data-i18n="labelCostPerShare">Cost / Share</label>
-          <input type="number" step="0.0001" id="costPerShare" placeholder="0.00" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1 font-num">
-        </div>
-        <div>
-          <label class="text-slate-500 text-sm block mb-1" data-i18n="labelCurrentPrice">Current Price</label>
-          <input type="number" step="0.0001" id="currentPrice" placeholder="0.00" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1 font-num">
-        </div>
-      </div>
-    </div>
-    <div id="fixedRateFields" class="hidden space-y-4">
-      <div>
-        <label class="text-slate-500 text-sm block mb-1" data-i18n="labelRate">Annual Rate (%)</label>
-        <input type="number" step="0.01" id="rate" placeholder="3.00" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1 font-num">
-      </div>
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="text-slate-500 text-sm block mb-1" data-i18n="labelStartDate">Start Date</label>
-          <input type="date" id="startDate" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
-        </div>
-        <div>
-          <label class="text-slate-500 text-sm block mb-1" data-i18n="labelMaturityDate">Maturity (optional)</label>
-          <input type="date" id="maturityDate" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
-        </div>
-      </div>
-      <div>
-        <label class="text-slate-500 text-sm block mb-1" data-i18n="labelCompounding">Interest Type</label>
-        <select id="compounding" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
-          <option value="simple" data-i18n="compSimple">Simple interest</option>
-          <option value="annual" data-i18n="compAnnual">Compound annually</option>
-          <option value="monthly" data-i18n="compMonthly">Compound monthly</option>
-          <option value="daily" data-i18n="compDaily">Compound daily</option>
-        </select>
-      </div>
-    </div>
-    <div class="grid grid-cols-2 gap-3">
       <div>
         <label class="text-slate-500 text-sm block mb-1" data-i18n="labelHoldingCurrency">Currency</label>
         <select id="holdingCurrency" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
@@ -439,13 +411,68 @@ tailwind.config = {
         <datalist id="ownerSuggestions"></datalist>
       </div>
     </div>
+    <div id="costBasisCurrentValueRow" class="grid grid-cols-3 gap-3">
+      <div id="costBasisFieldWrap">
+        <label class="text-slate-500 text-sm block mb-1" id="costBasisLabel" data-i18n="labelCostBasis">Cost Basis</label>
+        <input type="number" step="0.01" id="costBasis" placeholder="0.00" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1 font-num">
+      </div>
+      <div id="currentValueField">
+        <label class="text-slate-500 text-sm block mb-1" data-i18n="labelCurrentValue">Current Value</label>
+        <input type="number" step="0.01" id="currentValue" placeholder="0.00" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1 font-num">
+      </div>
+    </div>
+    <div id="sharesFields" class="hidden grid grid-cols-3 gap-3">
+      <div>
+        <label class="text-slate-500 text-sm block mb-1" data-i18n="labelShares">Shares / Units</label>
+        <input type="number" step="0.0001" id="shares" placeholder="0" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1 font-num">
+      </div>
+      <div>
+        <label class="text-slate-500 text-sm block mb-1" data-i18n="labelCostPerShare">Cost / Share</label>
+        <input type="number" step="0.0001" id="costPerShare" placeholder="0.00" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1 font-num">
+      </div>
+      <div>
+        <label class="text-slate-500 text-sm block mb-1" data-i18n="labelCurrentPrice">Current Price</label>
+        <input type="number" step="0.0001" id="currentPrice" placeholder="0.00" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1 font-num">
+      </div>
+    </div>
+    <div id="fixedRateFields" class="hidden space-y-4">
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <label class="text-slate-500 text-sm block mb-1" data-i18n="labelRate">Annual Rate (%)</label>
+          <input type="number" step="0.01" id="rate" placeholder="3.00" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1 font-num">
+        </div>
+        <div>
+          <label class="text-slate-500 text-sm block mb-1" data-i18n="labelStartDate">Start Date</label>
+          <input type="date" id="startDate" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
+        </div>
+        <div>
+          <label class="text-slate-500 text-sm block mb-1" data-i18n="labelMaturityDate">Maturity (optional)</label>
+          <input type="date" id="maturityDate" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
+        </div>
+      </div>
+      <div class="max-w-xs">
+        <label class="text-slate-500 text-sm block mb-1" data-i18n="labelCompounding">Interest Type</label>
+        <select id="compounding" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
+          <option value="simple" data-i18n="compSimple">Simple interest</option>
+          <option value="annual" data-i18n="compAnnual">Compound annually</option>
+          <option value="monthly" data-i18n="compMonthly">Compound monthly</option>
+          <option value="daily" data-i18n="compDaily">Compound daily</option>
+        </select>
+      </div>
+    </div>
     <div>
       <label class="text-slate-500 text-sm block mb-1" data-i18n="labelNotes">Notes (optional)</label>
       <input type="text" id="notes" class="w-full border border-slate-200 rounded-xl p-2.5 mt-1">
     </div>
-    <button onclick="saveHolding()" class="w-full text-white py-3.5 rounded-xl font-medium shadow-sm active:scale-[0.99] transition-all" style="background:var(--teal);" data-i18n="btnSave">Save</button>
+    <button onclick="saveHolding()" class="px-8 text-white py-3 rounded-xl font-medium shadow-sm active:scale-[0.99] transition-all" style="background:var(--teal);" data-i18n="btnSave">Save</button>
   </div>
-  <p class="text-[11px] text-slate-400 text-center" data-i18n="manualPriceNote">Values are entered manually — update them whenever you check your accounts.</p>
+  <p class="text-[11px] text-slate-400" data-i18n="manualPriceNote">Values are entered manually — update them whenever you check your accounts.</p>
+
+  <div class="card p-6">
+    <p class="text-[13px] font-semibold text-slate-500 uppercase tracking-wide mb-3" data-i18n="todayAddedTitle">Added Today</p>
+    <div id="todayAddedList" class="space-y-2"></div>
+    <p id="emptyTodayAdded" class="hidden text-center text-sm text-slate-400 py-6" data-i18n="emptyTodayAdded">Nothing added today yet.</p>
+  </div>
 </div>
 
 <!-- Edit modal -->
@@ -620,13 +647,15 @@ const i18nTexts = {
     totalNetWorth:"Total Net Worth", allTime:"all time",
     totalCost:"Total Cost Basis", holdingCount:"Holdings",
     allocationTitle:"Allocation", topGainer:"Top Gainer", topLoser:"Top Loser",
-    btnExport:"Export CSV", searchPh:"Search name or ticker",
+    btnExport:"Export CSV", searchPh:"Search name or ticker", searchPhFull:"Search name, ticker, category, or owner",
+    monthlyChangeTitle:"Change vs 30 Days Ago",
     thName:"Name", thOwner:"Owner", thCostBasis:"Cost Basis", thCurrentValue:"Current Value", thGainLoss:"Gain/Loss", btnEditShort:"Edit",
     emptyHoldings:"No holdings yet. Add your first one on the Add tab.",
     newHolding:"New Holding", labelCategory:"Category", labelName:"Name", namePh:"e.g. Apple Inc.",
     labelTicker:"Ticker (optional)", labelCostBasis:"Cost Basis", labelCurrentValue:"Current Value",
     labelQuantity:"Quantity (optional)", quantityPh:"e.g. shares/units", labelNotes:"Notes (optional)",
     labelOwner:"Family Member (optional)", ownerPh:"e.g. Me, Mom, Dad", ownerMe:"Me", familyTitle:"By Family Member",
+    labelViewing:"Viewing", viewingAll:"Everyone (combined)", historyMemberNote:"History is only available for the combined view.",
     authSubtitleIn:"Sign in to sync your data", authSubtitleUp:"Create an account to sync your data",
     authEmailPh:"Email", authPasswordPh:"Password", authSameLoginNote:"Same email/password as your Ledger app.",
     authSignIn:"Sign In", authSignUp:"Sign Up", authSignOut:"Sign out",
@@ -653,24 +682,27 @@ const i18nTexts = {
     btnSnapshot:"Record Today's Snapshot", alertSnapshotSaved:"Snapshot saved",
     ratesLiveAsOf:"Live rates as of", ratesCachedAsOf:"Using saved rates from", ratesApprox:"Using approximate rates — connect to the internet to update",
     btnSave:"Save", manualPriceNote:"Values are entered manually — update them whenever you check your accounts.",
+    todayAddedTitle:"Added Today", emptyTodayAdded:"Nothing added today yet.",
     btnCancel:"Cancel", btnUpdate:"Update", btnDelete:"Delete",
     alertEmpty:"Please fill in name, cost basis, and current value",
     alertSaved:"Holding saved", alertUpdated:"Holding updated", alertDeleted:"Holding deleted",
     confirmDel:"Delete this holding?", noResults:"No matching holdings.",
-    catStocks:"Stocks", catFunds:"Funds", catBank:"Bank Account", catWeChat:"WeChat", catAlipay:"Alipay", catCash:"Cash", catCrypto:"Crypto", catRealEstate:"Real Estate", catOther:"Other"
+    catStocks:"Stocks", catFunds:"Funds", catXueqiu:"Xueqiu", catBank:"Bank Account", catWeChat:"WeChat", catAlipay:"Alipay", catCash:"Cash", catCrypto:"Crypto", catRealEstate:"Real Estate", catOther:"Other"
   },
   zh:{
     tabOverview:"总览", tabHoldings:"持仓", tabAdd:"添加",
     totalNetWorth:"总资产净值", allTime:"累计",
     totalCost:"总投入成本", holdingCount:"持仓数量",
     allocationTitle:"资产配置", topGainer:"涨幅最大", topLoser:"跌幅最大",
-    btnExport:"导出CSV", searchPh:"搜索名称或代码",
+    btnExport:"导出CSV", searchPh:"搜索名称或代码", searchPhFull:"搜索名称、代码、类别或家庭成员",
+    monthlyChangeTitle:"较30天前变化",
     thName:"名称", thOwner:"家庭成员", thCostBasis:"投入成本", thCurrentValue:"当前价值", thGainLoss:"盈亏", btnEditShort:"编辑",
     emptyHoldings:"暂无持仓，请在“添加”页添加第一笔",
     newHolding:"新增持仓", labelCategory:"类别", labelName:"名称", namePh:"例如：苹果公司",
     labelTicker:"代码（可选）", labelCostBasis:"投入成本", labelCurrentValue:"当前价值",
     labelQuantity:"数量（可选）", quantityPh:"例如：股数/份额", labelNotes:"备注（可选）",
     labelOwner:"家庭成员（可选）", ownerPh:"例如：我、妈妈、爸爸", ownerMe:"我", familyTitle:"按家庭成员",
+    labelViewing:"查看", viewingAll:"全部（合并）", historyMemberNote:"历史记录仅支持合并视图查看。",
     authSubtitleIn:"登录以同步您的数据", authSubtitleUp:"创建账户以同步您的数据",
     authEmailPh:"邮箱", authPasswordPh:"密码", authSameLoginNote:"与您的记账本App使用相同的邮箱和密码。",
     authSignIn:"登录", authSignUp:"注册", authSignOut:"退出登录",
@@ -697,16 +729,17 @@ const i18nTexts = {
     btnSnapshot:"记录今日快照", alertSnapshotSaved:"快照已保存",
     ratesLiveAsOf:"实时汇率，更新于", ratesCachedAsOf:"使用已保存汇率，来自", ratesApprox:"使用近似汇率 — 请连接网络以更新",
     btnSave:"保存", manualPriceNote:"数值需手动录入 — 请在查看账户时及时更新。",
+    todayAddedTitle:"今日新增", emptyTodayAdded:"今天还没有新增记录。",
     btnCancel:"取消", btnUpdate:"保存修改", btnDelete:"删除",
     alertEmpty:"请填写名称、投入成本和当前价值",
     alertSaved:"已保存持仓", alertUpdated:"持仓已更新", alertDeleted:"持仓已删除",
     confirmDel:"确定删除这笔持仓？", noResults:"没有匹配的持仓。",
-    catStocks:"股票", catFunds:"基金", catBank:"银行账户", catWeChat:"微信", catAlipay:"支付宝", catCash:"现金", catCrypto:"加密货币", catRealEstate:"房地产", catOther:"其他"
+    catStocks:"股票", catFunds:"基金", catXueqiu:"雪球", catBank:"银行账户", catWeChat:"微信", catAlipay:"支付宝", catCash:"现金", catCrypto:"加密货币", catRealEstate:"房地产", catOther:"其他"
   }
 };
 
-const catEmoji = { catStocks:"📈", catFunds:"📊", catBank:"🏦", catWeChat:"💬", catAlipay:"💠", catCash:"💵", catCrypto:"₿", catRealEstate:"🏠", catOther:"📦" };
-const catKeys = ["catStocks","catFunds","catBank","catWeChat","catAlipay","catCash","catCrypto","catRealEstate","catOther"];
+const catEmoji = { catStocks:"📈", catFunds:"📊", catXueqiu:"❄️", catBank:"🏦", catWeChat:"💬", catAlipay:"💠", catCash:"💵", catCrypto:"₿", catRealEstate:"🏠", catOther:"📦" };
+const catKeys = ["catStocks","catFunds","catXueqiu","catBank","catWeChat","catAlipay","catCash","catCrypto","catRealEstate","catOther"];
 
 function hslToHex(h, s, l){
   s/=100; l/=100;
@@ -734,6 +767,11 @@ let realizedTrades = [];
 let netWorthHistory = [];
 let historyRange = "all";
 let sellingHoldingId = null;
+let selectedOwner = "all";
+function ownerOf(h){
+  const dict = i18nTexts[currentLang];
+  return (h.owner||"").trim() || dict.ownerMe;
+}
 
 // ---------- Live exchange rates ----------
 // Rates are USD-based: rates[X] = how many units of X per 1 USD.
@@ -886,6 +924,7 @@ document.querySelectorAll("[data-page]").forEach((btn)=>{
     document.getElementById("page-"+target).classList.remove("hidden");
     if(target==="overview") renderOverview();
     if(target==="holdings") renderHoldingsList();
+    if(target==="add") renderTodayAdded();
   };
 });
 
@@ -924,7 +963,7 @@ async function saveHolding(){
     if(!name || isNaN(costBasis) || isNaN(currentValue)) return showToast(dict.alertEmpty);
   }
 
-  const data = { category, name, ticker, mode, costBasis, currentValue, currency, owner, notes, rate, startDate, maturityDate, compounding, shares, costPerShare, currentPrice };
+  const data = { category, name, ticker, mode, costBasis, currentValue, currency, owner, notes, rate, startDate, maturityDate, compounding, shares, costPerShare, currentPrice, createdAt: new Date().toISOString().slice(0,10) };
   const newId = await window.fb.addHolding(currentUid, data);
   holdings.unshift({ id:newId, ...data });
 
@@ -943,12 +982,43 @@ async function saveHolding(){
   showToast(dict.alertSaved);
   renderOverview();
   renderHoldingsList();
+  renderTodayAdded();
+}
+
+function renderTodayAdded(){
+  const dict = i18nTexts[currentLang];
+  const today = new Date().toISOString().slice(0,10);
+  const todays = holdings.filter(h=> h.createdAt === today);
+  const wrap = document.getElementById("todayAddedList");
+  wrap.innerHTML = "";
+  document.getElementById("emptyTodayAdded").classList.toggle("hidden", todays.length>0);
+  todays.forEach(h=>{
+    const curr = h.currency || "CNY";
+    const val = convert(getCurrentValue(h), curr, currentCurrency);
+    const row = document.createElement("div");
+    row.className = "flex justify-between items-center text-sm py-1.5 cursor-pointer";
+    row.onclick = ()=> openEdit(h.id);
+    row.innerHTML = `
+      <div class="flex items-center gap-2">
+        <span class="icon-badge" style="background:${catColor(h.category)}33; width:28px;height:28px;font-size:14px;">${catIcon(h.category)}</span>
+        <span class="font-medium">${h.name}</span>
+        <span class="text-xs text-slate-400">${catLabel(h.category)}</span>
+      </div>
+      <span class="font-num font-semibold">${sym()}${val.toFixed(2)}</span>
+    `;
+    wrap.appendChild(row);
+  });
 }
 
 function getFilteredHoldings(){
   const q = (document.getElementById("searchInput").value || "").trim().toLowerCase();
   if(!q) return holdings;
-  return holdings.filter(h=> (h.name||"").toLowerCase().includes(q) || (h.ticker||"").toLowerCase().includes(q) || (h.owner||"").toLowerCase().includes(q));
+  return holdings.filter(h=>
+    (h.name||"").toLowerCase().includes(q) ||
+    (h.ticker||"").toLowerCase().includes(q) ||
+    (h.owner||"").toLowerCase().includes(q) ||
+    catLabel(h.category).toLowerCase().includes(q)
+  );
 }
 document.getElementById("searchInput").oninput = renderHoldingsList;
 
@@ -1012,11 +1082,47 @@ function quickEditValue(id, event){
   });
 }
 
+function computeMonthlyChange(){
+  if(netWorthHistory.length===0) return null;
+  const now = new Date();
+  const targetDate = new Date(now); targetDate.setDate(targetDate.getDate()-30);
+  const targetStr = targetDate.toISOString().slice(0,10);
+  const past = [...netWorthHistory].filter(e=> e.date <= targetStr).sort((a,b)=> b.date.localeCompare(a.date))[0];
+  if(!past) return null;
+  const currentTotal = holdings.reduce((s,h)=> s + convert(getCurrentValue(h), h.currency||"CNY", currentCurrency), 0);
+  const pastVal = convert(past.valueUSD, "USD", currentCurrency);
+  const change = currentTotal - pastVal;
+  const pct = pastVal>0 ? change/pastVal*100 : 0;
+  return { change, pct };
+}
+
+function renderHoldingsStats(filtered){
+  const totalValue = filtered.reduce((s,h)=> s + convert(getCurrentValue(h), h.currency||"CNY", currentCurrency), 0);
+  const totalCost = filtered.reduce((s,h)=> s + convert(getCostBasis(h), h.currency||"CNY", currentCurrency), 0);
+  const totalGain = totalValue - totalCost;
+  document.getElementById("holdingsTotalCost").innerText = sym() + totalCost.toFixed(2);
+  document.getElementById("holdingsTotalValue").innerText = sym() + totalValue.toFixed(2);
+  const gainEl = document.getElementById("holdingsTotalGain");
+  gainEl.innerText = (totalGain>=0?"+":"") + sym() + totalGain.toFixed(2);
+  gainEl.style.color = totalGain>=0 ? "var(--moss)" : "var(--rose)";
+
+  const monthly = computeMonthlyChange();
+  const monthlyEl = document.getElementById("monthlyChangeVal");
+  if(monthly === null){
+    monthlyEl.innerText = "—";
+    monthlyEl.style.color = "";
+  }else{
+    monthlyEl.innerText = (monthly.change>=0?"+":"") + sym() + monthly.change.toFixed(2) + " (" + (monthly.pct>=0?"+":"") + monthly.pct.toFixed(1) + "%)";
+    monthlyEl.style.color = monthly.change>=0 ? "var(--moss)" : "var(--rose)";
+  }
+}
+
 function renderHoldingsList(){
   const dict = i18nTexts[currentLang];
   const wrap = document.getElementById("holdingsList");
   wrap.innerHTML = "";
   const filtered = getFilteredHoldings();
+  renderHoldingsStats(filtered);
   document.getElementById("emptyHoldings").classList.toggle("hidden", holdings.length>0);
 
   if(holdings.length>0 && filtered.length===0){
@@ -1233,7 +1339,7 @@ async function confirmSell(){
   if(!result) return showToast(dict.alertEmpty);
 
   const trade = {
-    name: h.name, category: h.category, currency: curr,
+    name: h.name, category: h.category, currency: curr, owner: h.owner || "",
     date, amount: result.proceeds, costPortion: result.costPortion, gain: result.gain,
     shares: h.mode === "shares" ? result.clamped : null,
     price: h.mode === "shares" ? (parseFloat(document.getElementById("sellPrice").value)||null) : null
@@ -1339,15 +1445,19 @@ function deleteRealized(id){
 }
 function renderRealized(){
   const dict = i18nTexts[currentLang];
-  const totalRealized = realizedTrades.reduce((s,t)=> s + convert(t.gain, t.currency||"CNY", currentCurrency), 0);
+  const filteredTrades = selectedOwner === "all"
+    ? realizedTrades
+    : realizedTrades.filter(t=> ((t.owner||"").trim() || dict.ownerMe) === selectedOwner);
+
+  const totalRealized = filteredTrades.reduce((s,t)=> s + convert(t.gain, t.currency||"CNY", currentCurrency), 0);
   const totalEl = document.getElementById("totalRealized");
   totalEl.innerText = (totalRealized>=0?"+":"") + sym() + totalRealized.toFixed(2);
   totalEl.style.color = totalRealized>=0 ? "var(--moss)" : "var(--rose)";
 
   const wrap = document.getElementById("realizedList");
   wrap.innerHTML = "";
-  document.getElementById("emptyRealized").classList.toggle("hidden", realizedTrades.length>0);
-  realizedTrades.slice(0,8).forEach(t=>{
+  document.getElementById("emptyRealized").classList.toggle("hidden", filteredTrades.length>0);
+  filteredTrades.slice(0,8).forEach(t=>{
     const converted = convert(t.gain, t.currency||"CNY", currentCurrency);
     const symC = currencySymbols[t.currency||"CNY"] || "¥";
     const detail = t.shares
@@ -1414,16 +1524,33 @@ function renderHistoryChart(){
   });
 }
 
+function populateOwnerFilter(){
+  const dict = i18nTexts[currentLang];
+  const owners = [...new Set(holdings.map(h=> ownerOf(h)))].sort();
+  const sel = document.getElementById("ownerFilter");
+  const prev = selectedOwner;
+  sel.innerHTML = `<option value="all">${dict.viewingAll}</option>` + owners.map(o=> `<option value="${o}">${o}</option>`).join("");
+  selectedOwner = owners.includes(prev) ? prev : "all";
+  sel.value = selectedOwner;
+}
+document.getElementById("ownerFilter").onchange = function(){
+  selectedOwner = this.value;
+  renderOverview();
+};
+
 function renderOverview(){
   const dict = i18nTexts[currentLang];
-  const totalValue = holdings.reduce((s,h)=> s + convert(getCurrentValue(h), h.currency||"CNY", currentCurrency), 0);
-  const totalCost = holdings.reduce((s,h)=> s + convert(getCostBasis(h), h.currency||"CNY", currentCurrency), 0);
+  populateOwnerFilter();
+  const viewHoldings = selectedOwner === "all" ? holdings : holdings.filter(h=> ownerOf(h) === selectedOwner);
+
+  const totalValue = viewHoldings.reduce((s,h)=> s + convert(getCurrentValue(h), h.currency||"CNY", currentCurrency), 0);
+  const totalCost = viewHoldings.reduce((s,h)=> s + convert(getCostBasis(h), h.currency||"CNY", currentCurrency), 0);
   const totalGain = totalValue - totalCost;
   const totalGainPct = totalCost>0 ? (totalGain/totalCost*100) : 0;
 
   document.getElementById("totalValue").innerText = sym() + totalValue.toFixed(2);
   document.getElementById("totalCost").innerText = sym() + totalCost.toFixed(2);
-  document.getElementById("holdingCount").innerText = holdings.length;
+  document.getElementById("holdingCount").innerText = viewHoldings.length;
   document.getElementById("totalGainAmt").innerText = (totalGain>=0?"+":"") + sym() + totalGain.toFixed(2);
   document.getElementById("totalGainPct").innerText = (totalGainPct>=0?"+":"") + totalGainPct.toFixed(1) + "%";
   const gainLine = document.getElementById("totalGainLine");
@@ -1432,7 +1559,7 @@ function renderOverview(){
   // Allocation
   const catSums = {};
   catKeys.forEach(k=>catSums[k]=0);
-  holdings.forEach(h=> catSums[h.category] = (catSums[h.category]||0) + convert(getCurrentValue(h), h.currency||"CNY", currentCurrency));
+  viewHoldings.forEach(h=> catSums[h.category] = (catSums[h.category]||0) + convert(getCurrentValue(h), h.currency||"CNY", currentCurrency));
   const labels = [], data = [], colors = [];
   catKeys.forEach(k=>{
     if(catSums[k] > 0){ labels.push(catLabel(k)); data.push(catSums[k]); colors.push(catColor(k)); }
@@ -1461,7 +1588,7 @@ function renderOverview(){
   });
 
   // Top gainer / loser
-  const withPct = holdings.map(h=>{
+  const withPct = viewHoldings.map(h=>{
     const cb = getCostBasis(h);
     return { ...h, pct: cb>0 ? (getCurrentValue(h)-cb)/cb*100 : 0 };
   });
@@ -1477,22 +1604,23 @@ function renderOverview(){
     loserEl.innerHTML = `<div class="font-medium">${bottom.name}</div><div class="font-num" style="color:var(--rose);">${bottom.pct>=0?'+':''}${bottom.pct.toFixed(1)}%</div>`;
   }
 
-  // Family member breakdown
+  // Family member breakdown — always reflects everyone, regardless of the filter above
   const ownerSums = {};
   holdings.forEach(h=>{
-    const owner = (h.owner||"").trim() || dict.ownerMe;
+    const owner = ownerOf(h);
     ownerSums[owner] = (ownerSums[owner]||0) + convert(getCurrentValue(h), h.currency||"CNY", currentCurrency);
   });
   const ownerNames = Object.keys(ownerSums);
   document.getElementById("familyCard").classList.toggle("hidden", ownerNames.length <= 1);
   if(ownerNames.length > 1){
+    const familyTotal = Object.values(ownerSums).reduce((s,v)=>s+v,0);
     const familyRows = ownerNames
       .map((name,i)=>({ name, val: ownerSums[name], color: hslToHex(Math.round(360*i/ownerNames.length), 55, 72) }))
       .sort((a,b)=> b.val-a.val);
     const familyWrap = document.getElementById("familyLegend");
     familyWrap.innerHTML = "";
     familyRows.forEach(row=>{
-      const pct = totalValue>0 ? (row.val/totalValue*100) : 0;
+      const pct = familyTotal>0 ? (row.val/familyTotal*100) : 0;
       const line = document.createElement("div");
       line.className = "flex items-center gap-2 text-sm";
       line.innerHTML = `
@@ -1510,7 +1638,17 @@ function renderOverview(){
   document.getElementById("ownerSuggestions").innerHTML = ownerSet.map(o=> `<option value="${o}">`).join("");
 
   renderRealized();
-  renderHistoryChart();
+
+  // History is only meaningful for the combined view (snapshots aren't per-member)
+  const isAll = selectedOwner === "all";
+  document.getElementById("snapshotBtn").classList.toggle("hidden", !isAll);
+  document.getElementById("historyMemberNote").classList.toggle("hidden", isAll);
+  if(isAll){
+    renderHistoryChart();
+  }else{
+    document.getElementById("historyChart").classList.add("hidden");
+    document.getElementById("emptyHistory").classList.add("hidden");
+  }
 }
 
 function exportCSV(){
@@ -1575,6 +1713,7 @@ async function bootApp(uid){
 
   setLanguage(currentLang);
   loadExchangeRates();
+  renderTodayAdded();
 }
 
 function resetAppState(){
