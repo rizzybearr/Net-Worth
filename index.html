@@ -330,7 +330,13 @@ tailwind.config = {
 
 <!-- Holdings -->
 <div id="page-holdings" class="p-4 hidden fade-in space-y-4">
-  <input type="text" id="searchInput" data-i18n-placeholder="searchPhFull" placeholder="Search name, ticker, category, or owner" class="w-full border border-slate-200 rounded-xl p-2.5 text-sm max-w-sm">
+  <div class="flex items-center justify-between gap-3 flex-wrap">
+    <input type="text" id="searchInput" data-i18n-placeholder="searchPhFull" placeholder="Search name, ticker, category, or owner" class="border border-slate-200 rounded-xl p-2.5 text-sm max-w-sm flex-1">
+    <div class="flex items-center gap-2">
+      <p id="priceStatus" class="text-[11px] text-slate-400"></p>
+      <button onclick="fetchTickerPrices(true)" class="text-sm px-3 py-1.5 rounded-lg text-white font-medium" style="background:var(--sky);" data-i18n="btnRefreshPrices">Refresh Prices</button>
+    </div>
+  </div>
 
   <div class="grid-4">
     <div class="card p-4">
@@ -681,6 +687,8 @@ const i18nTexts = {
     emptyHistory:"No snapshots yet — tap below to record today's.",
     btnSnapshot:"Record Today's Snapshot", alertSnapshotSaved:"Snapshot saved",
     ratesLiveAsOf:"Live rates as of", ratesCachedAsOf:"Using saved rates from", ratesApprox:"Using approximate rates — connect to the internet to update",
+    btnRefreshPrices:"Refresh Prices", pricesLiveAsOf:"Prices updated", pricesNeverFetched:"Prices not yet fetched",
+    pricesFetchFailed:"Couldn't fetch prices — showing saved values from", pricesPartial:"Some prices updated",
     btnSave:"Save", manualPriceNote:"Values are entered manually — update them whenever you check your accounts.",
     todayAddedTitle:"Added Today", emptyTodayAdded:"Nothing added today yet.",
     btnCancel:"Cancel", btnUpdate:"Update", btnDelete:"Delete",
@@ -728,6 +736,8 @@ const i18nTexts = {
     emptyHistory:"暂无快照 — 点击下方记录今天的数据。",
     btnSnapshot:"记录今日快照", alertSnapshotSaved:"快照已保存",
     ratesLiveAsOf:"实时汇率，更新于", ratesCachedAsOf:"使用已保存汇率，来自", ratesApprox:"使用近似汇率 — 请连接网络以更新",
+    btnRefreshPrices:"刷新价格", pricesLiveAsOf:"价格已更新", pricesNeverFetched:"尚未获取价格",
+    pricesFetchFailed:"无法获取价格 — 显示已保存数值，来自", pricesPartial:"部分价格已更新",
     btnSave:"保存", manualPriceNote:"数值需手动录入 — 请在查看账户时及时更新。",
     todayAddedTitle:"今日新增", emptyTodayAdded:"今天还没有新增记录。",
     btnCancel:"取消", btnUpdate:"保存修改", btnDelete:"删除",
@@ -860,6 +870,139 @@ function renderRateStatus(){
   }else{
     el.innerText = dict.ratesApprox;
     el.style.color = "var(--amber)";
+  }
+}
+
+// ---------- Automatic ticker price fetch (Shares & Price holdings only) ----------
+const PRICE_MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12h — matches "daily/weekly" use, avoids hammering the API
+let priceFetchedAt = null;
+let priceFetchOk = 0;
+let priceFetchFail = 0;
+
+async function fetchOneTickerPrice(ticker){
+  const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}`);
+  const data = await res.json();
+  const price = data?.chart?.result?.[0]?.meta?.regularMarketPrice;
+  if(typeof price !== "number") throw new Error("no price");
+  return price;
+}
+
+// Chinese OTC/on-exchange fund NAV — uses the fund's public JSONP estimation feed,
+// since this endpoint doesn't support CORS for a normal fetch(). We load it as a
+// <script> tag instead (the classic JSONP workaround) and read the value it hands
+// to a global callback. Fetched one at a time since the callback name is fixed.
+function fetchOneFundNav(code){
+  return new Promise((resolve, reject)=>{
+    const scriptId = "fundjsonp-" + code;
+    const existing = document.getElementById(scriptId);
+    if(existing) existing.remove();
+
+    const timer = setTimeout(()=>{ cleanup(); reject(new Error("timeout")); }, 8000);
+    function cleanup(){
+      clearTimeout(timer);
+      const s = document.getElementById(scriptId);
+      if(s) s.remove();
+    }
+    window.jsonpgz = function(data){ cleanup(); resolve(data); };
+
+    const script = document.createElement("script");
+    script.id = scriptId;
+    script.src = `https://fundgz.1234567.com.cn/js/${encodeURIComponent(code)}.js?rt=${Date.now()}`;
+    script.onerror = ()=>{ cleanup(); reject(new Error("script error")); };
+    document.body.appendChild(script);
+  });
+}
+function isChineseFundCode(ticker){ return /^\d{6}$/.test(ticker); }
+
+async function fetchTickerPrices(force){
+  const dict = i18nTexts[currentLang];
+  const lastFetch = localStorage.getItem("nwLastPriceFetch");
+  const age = lastFetch ? Date.now() - new Date(lastFetch).getTime() : Infinity;
+  if(!force && age < PRICE_MAX_AGE_MS){
+    priceFetchedAt = lastFetch;
+    renderPriceStatus();
+    return;
+  }
+
+  const tickered = holdings.filter(h=> h.mode==="shares" && (h.ticker||"").trim());
+  const allTickers = [...new Set(tickered.map(h=> h.ticker.trim()))];
+  if(allTickers.length===0){
+    priceFetchedAt = null;
+    renderPriceStatus();
+    return;
+  }
+  const fundCodes = allTickers.filter(isChineseFundCode);
+  const yahooTickers = allTickers.filter(t=> !isChineseFundCode(t));
+
+  priceFetchOk = 0; priceFetchFail = 0;
+  const priceMap = {};
+
+  await Promise.all(yahooTickers.map(async (t)=>{
+    try{
+      priceMap[t] = await fetchOneTickerPrice(t);
+      priceFetchOk++;
+    }catch(e){
+      priceFetchFail++;
+    }
+  }));
+
+  // Fund codes go one at a time — the JSONP callback is a single shared global function
+  for(const code of fundCodes){
+    try{
+      const data = await fetchOneFundNav(code);
+      const nav = parseFloat(data?.dwjz ?? data?.gsz);
+      if(!isNaN(nav)){ priceMap[code] = nav; priceFetchOk++; }
+      else{ priceFetchFail++; }
+    }catch(e){
+      priceFetchFail++;
+    }
+  }
+
+  const updates = [];
+  tickered.forEach(h=>{
+    const p = priceMap[h.ticker.trim()];
+    if(typeof p === "number" && p !== h.currentPrice){
+      h.currentPrice = p;
+      updates.push(h);
+    }
+  });
+
+  priceFetchedAt = new Date().toISOString();
+  localStorage.setItem("nwLastPriceFetch", priceFetchedAt);
+  renderPriceStatus();
+  renderOverview();
+  renderHoldingsList();
+
+  for(const h of updates){
+    const { id: _drop, ...data } = h;
+    await window.fb.updateHoldingDoc(currentUid, h.id, data);
+  }
+}
+
+function renderPriceStatus(){
+  const dict = i18nTexts[currentLang];
+  const el = document.getElementById("priceStatus");
+  if(!el) return;
+  const tickered = holdings.filter(h=> h.mode==="shares" && (h.ticker||"").trim());
+  if(tickered.length===0){
+    el.innerText = "";
+    return;
+  }
+  if(!priceFetchedAt){
+    el.innerText = dict.pricesNeverFetched;
+    el.style.color = "var(--amber)";
+    return;
+  }
+  const t = new Date(priceFetchedAt).toLocaleString(currentLang==="zh"?"zh-CN":"en-US", {month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
+  if(priceFetchFail > 0 && priceFetchOk === 0){
+    el.innerText = dict.pricesFetchFailed + " " + t;
+    el.style.color = "var(--amber)";
+  }else if(priceFetchFail > 0){
+    el.innerText = dict.pricesPartial + " " + t;
+    el.style.color = "var(--amber)";
+  }else{
+    el.innerText = dict.pricesLiveAsOf + " " + t;
+    el.style.color = "";
   }
 }
 
@@ -1713,6 +1856,7 @@ async function bootApp(uid){
 
   setLanguage(currentLang);
   loadExchangeRates();
+  fetchTickerPrices(false);
   renderTodayAdded();
 }
 
