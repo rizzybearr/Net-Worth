@@ -886,32 +886,9 @@ async function fetchOneTickerPrice(ticker){
   if(typeof price !== "number") throw new Error("no price");
   return price;
 }
-
-// Chinese OTC/on-exchange fund NAV — uses the fund's public JSONP estimation feed,
-// since this endpoint doesn't support CORS for a normal fetch(). We load it as a
-// <script> tag instead (the classic JSONP workaround) and read the value it hands
-// to a global callback. Fetched one at a time since the callback name is fixed.
-function fetchOneFundNav(code){
-  return new Promise((resolve, reject)=>{
-    const scriptId = "fundjsonp-" + code;
-    const existing = document.getElementById(scriptId);
-    if(existing) existing.remove();
-
-    const timer = setTimeout(()=>{ cleanup(); reject(new Error("timeout")); }, 8000);
-    function cleanup(){
-      clearTimeout(timer);
-      const s = document.getElementById(scriptId);
-      if(s) s.remove();
-    }
-    window.jsonpgz = function(data){ cleanup(); resolve(data); };
-
-    const script = document.createElement("script");
-    script.id = scriptId;
-    script.src = `https://fundgz.1234567.com.cn/js/${encodeURIComponent(code)}.js?rt=${Date.now()}`;
-    script.onerror = ()=>{ cleanup(); reject(new Error("script error")); };
-    document.body.appendChild(script);
-  });
-}
+// Plain 6-digit codes are Chinese fund codes — no reliable public/CORS-friendly
+// data source for these was found, so they're treated as manual-only and never
+// included in auto-fetch attempts (avoids wasted, always-failing requests).
 function isChineseFundCode(ticker){ return /^\d{6}$/.test(ticker); }
 
 async function fetchTickerPrices(force){
@@ -924,20 +901,18 @@ async function fetchTickerPrices(force){
     return;
   }
 
-  const tickered = holdings.filter(h=> h.mode==="shares" && (h.ticker||"").trim());
+  const tickered = holdings.filter(h=> h.mode==="shares" && (h.ticker||"").trim() && !isChineseFundCode(h.ticker.trim()));
   const allTickers = [...new Set(tickered.map(h=> h.ticker.trim()))];
   if(allTickers.length===0){
     priceFetchedAt = null;
     renderPriceStatus();
     return;
   }
-  const fundCodes = allTickers.filter(isChineseFundCode);
-  const yahooTickers = allTickers.filter(t=> !isChineseFundCode(t));
 
   priceFetchOk = 0; priceFetchFail = 0;
   const priceMap = {};
 
-  await Promise.all(yahooTickers.map(async (t)=>{
+  await Promise.all(allTickers.map(async (t)=>{
     try{
       priceMap[t] = await fetchOneTickerPrice(t);
       priceFetchOk++;
@@ -945,18 +920,6 @@ async function fetchTickerPrices(force){
       priceFetchFail++;
     }
   }));
-
-  // Fund codes go one at a time — the JSONP callback is a single shared global function
-  for(const code of fundCodes){
-    try{
-      const data = await fetchOneFundNav(code);
-      const nav = parseFloat(data?.dwjz ?? data?.gsz);
-      if(!isNaN(nav)){ priceMap[code] = nav; priceFetchOk++; }
-      else{ priceFetchFail++; }
-    }catch(e){
-      priceFetchFail++;
-    }
-  }
 
   const updates = [];
   tickered.forEach(h=>{
@@ -983,7 +946,7 @@ function renderPriceStatus(){
   const dict = i18nTexts[currentLang];
   const el = document.getElementById("priceStatus");
   if(!el) return;
-  const tickered = holdings.filter(h=> h.mode==="shares" && (h.ticker||"").trim());
+  const tickered = holdings.filter(h=> h.mode==="shares" && (h.ticker||"").trim() && !isChineseFundCode(h.ticker.trim()));
   if(tickered.length===0){
     el.innerText = "";
     return;
